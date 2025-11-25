@@ -1,0 +1,7 @@
+- datasets=graph_sst2
+- explainers=subgraphx
+- explainers=subgraphx
+- datasets.dataset_root=/home/myrto/Desktop/codes/paper/DIG_ROBUSTNESS/benchmarks/xgraph/datasets
+- models.gnn_saving_dir=/home/myrto/Desktop/codes/paper/DIG_ROBUSTNESS/benchmarks/xgraph/checkpoints
+- explainers.explanation_result_dir=/home/myrto/Desktop/codes/paper/DIG_ROBUSTNESS/benchmarks/xgraph/results
+- record_filename=/home/myrto/Desktop/codes/paper/DIG_ROBUSTNESS/benchmarks/xgraph/result_jsons

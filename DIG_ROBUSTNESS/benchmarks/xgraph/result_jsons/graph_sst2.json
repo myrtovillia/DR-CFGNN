@@ -1,0 +1,12 @@
+{
+  "subgraphx": {
+    "8": {
+      "fidelity": 0.3482739329338074,
+      "fidelity_inv": -0.030462170019745827,
+      "sparsity": 0.5892490744590759,
+      "accuracy": NaN,
+      "stability": NaN,
+      "model_accuracy": 0.8791872597473915
+    }
+  }
+}
