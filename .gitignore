@@ -1,29 +1,37 @@
 DIG/benchmarks/xgraph/cfexplainer_plots
 DIG/benchmarks/xgraph/checkpoints
-
 DIG/benchmarks/xgraph/checkpoints_lp
 DIG/benchmarks/xgraph/checkpoints_taxonomy
-
 DIG/benchmarks/xgraph/datasets
 DIG/benchmarks/xgraph/MELD
-
-
 DIG/benchmarks/xgraph/results
 DIG/benchmarks/xgraph/results_taxonomy
 
+DIG/dig/auggraph
+DIG/dig/fairgraph
+DIG/dig/ggraph
+DIG/dig/ggraph3D
+DIG/dig/lsgraph
+DIG/dig/oodgraph
+DIG/dig/sslgraph
+DIG/dig/threedgraph
 
+DIG_ROBUSTNESS/dig/auggraph
+DIG_ROBUSTNESS/dig/fairgraph
+DIG_ROBUSTNESS/dig/ggraph
+DIG_ROBUSTNESS/dig/ggraph3D
+DIG_ROBUSTNESS/dig/lsgraph
+DIG_ROBUSTNESS/dig/oodgraph
+DIG_ROBUSTNESS/dig/sslgraph
+DIG_ROBUSTNESS/dig/threedgraph
 
 
 DIG_ROBUSTNESS/benchmarks/xgraph/cfexplainer_plots
 DIG_ROBUSTNESS/benchmarks/xgraph/checkpoints
-
 DIG_ROBUSTNESS/benchmarks/xgraph/checkpoints_lp
 DIG_ROBUSTNESS/benchmarks/xgraph/checkpoints_taxonomy
-
 DIG_ROBUSTNESS/benchmarks/xgraph/datasets
 DIG_ROBUSTNESS/benchmarks/xgraph/MELD
-
-
 DIG_ROBUSTNESS/benchmarks/xgraph/results
 DIG_ROBUSTNESS/benchmarks/xgraph/results_taxonomy
 
