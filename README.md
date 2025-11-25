@@ -4,7 +4,9 @@ This repository provides the code to reproduce the results from the submitted pa
 
 
 
-**Note 1:** We explicitly state that our work was built on top of the DIG library https://github.com/divelab/DIG.git and the survey paper https://arxiv.org/abs/2012.15445 by Yuan et al. The authors of the survey evaluated numerous state-of-the-art explanation methods for Graph Neural Networks (GNNs) and developed an open source library for GNN explainability, released as part of the DIG library. In our work, we build on top of their GitHub repository. 'dig' from their github contains multiple folders such as auggraph, fairgraph, ggraph, ggraph3D, lsgraph, oodgraph, sslgraph, threedgraph and xgraph. We kept only the relevant folder, xgraph, and modified some of its scripts in order to create the incomplete synthetic dataset and inject noise. 
+**Note 1:** We explicitly state that our work was built on top of the DIG library https://github.com/divelab/DIG.git and the survey paper https://arxiv.org/abs/2012.15445 by Yuan et al. The authors of the survey evaluated numerous state-of-the-art explanation methods for Graph Neural Networks (GNNs) and developed an open source library for GNN explainability, released as part of the DIG library. 
+
+'dig' from their github contains multiple folders. We kept only the relevant folder, xgraph, and modified some of its scripts in order to create the incomplete synthetic dataset and inject noise. 
 
 
 --------------------------------------------------------------------------------------------
