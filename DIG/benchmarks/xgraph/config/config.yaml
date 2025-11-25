@@ -12,5 +12,5 @@ explain:
   threshold_whole: 0.8
   threshold_subgraph: 0.8
 run:
-  link_prediction: true
+  reconstruction_deconstruction: true
   random_baselines: true

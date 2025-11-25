@@ -79,7 +79,7 @@ def find_closest_node_result(results, max_nodes):
 @hydra.main(config_path="config", config_name="config")
 def pipeline(config):
 
-    link_prediction = config.run.link_prediction
+    reconstruction_deconstruction = config.run.reconstruction_deconstruction
     random_baselines = config.run.random_baselines
     
     max_nodes = config.explain.max_nodes
@@ -157,11 +157,11 @@ def pipeline(config):
 
 	   	
     
-    if link_prediction:
-    	model_link_prediction = LinkPredictionNet(in_channels=dataset.num_features, hidden_channels=100, mlp_hidden_dim=256).to(device)   # hidden_channels=100, mlp_hidden_dim=256 for twitter, sst2, sst5
+    if reconstruction_deconstruction:
+    	reconstruction_model = LinkPredictionNet(in_channels=dataset.num_features, hidden_channels=200, mlp_hidden_dim=4000).to(device)   # hidden_channels=100, mlp_hidden_dim=256 for twitter, sst2, sst5
     	lp_model_path = os.path.join(os.path.dirname(__file__), 'checkpoints_lp', f"model_lp_{config.datasets.dataset_name}.pt")
-    	model_link_prediction.load_state_dict(torch.load(lp_model_path, map_location=device))
-    	model_link_prediction.eval()
+    	reconstruction_model.load_state_dict(torch.load(lp_model_path, map_location=device))
+    	reconstruction_model.eval()
 
     
     pt_files = {int(f.split('_')[-1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt')}
@@ -176,20 +176,20 @@ def pipeline(config):
     diff_pred_graph_subgraph=0
     counterfactuals_whole_graph=set()
     counterfactuals_naive=set()
-    successful_msg_test_indices= set()
-    successful_msg_lp_test_indices=set()
+    successful_dec_test_indices= set()
+    successful_dec_rec_test_indices=set()
     
     
     # ---FOLDERS TO SAVE THE RESULTS---
-    base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "MELD", f"counterfactuals_{config.datasets.dataset_name}_max_nodes_{max_nodes}_thr_whole_{threshold_whole}_thr_sub_{threshold_subgraph}_m_{top_m}_r_{top_r}")
+    base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN", f"counterfactuals_{config.datasets.dataset_name}_max_nodes_{max_nodes}_thr_whole_{threshold_whole}_thr_sub_{threshold_subgraph}_m_{top_m}_r_{top_r}")
 
-    if link_prediction:
-    	msg_link_prediction = os.path.join(base_counterfactuals_dir, "MELD_msg_link_prediction") 
-    	os.makedirs(msg_link_prediction, exist_ok=True)     
-    	whole_graph = os.path.join(base_counterfactuals_dir, "MELD_whole_graph")  
+    if reconstruction_deconstruction:
+    	dec_rec_folder = os.path.join(base_counterfactuals_dir, "DR_CFGNN_Dec_Rec") 
+    	os.makedirs(dec_rec_folder, exist_ok=True)     
+    	whole_graph = os.path.join(base_counterfactuals_dir, "DR_CFGNN_Rec")  
     	os.makedirs(whole_graph, exist_ok=True) 
-    	msg = os.path.join(base_counterfactuals_dir, "MELD_msg") 
-    	os.makedirs(msg, exist_ok=True)
+    	deconstruction_folder = os.path.join(base_counterfactuals_dir, "DR_CFGNN_Dec") 
+    	os.makedirs(deconstruction_folder, exist_ok=True)
     	
     if random_baselines:   
     	naive_random_baseline = os.path.join(base_counterfactuals_dir, "naive_random_baseline")
@@ -198,7 +198,7 @@ def pipeline(config):
 
 #---------------------------------------------------------------------------------------------------------------    	
 				    		
-    def apply_link_prediction_cf(temp, G_full, temp_data, sentence_tokens_dict, data, model, model_link_prediction, test_i, edge_subset, pred_graph, folder, device,  config, label_mapping, sentence_mapping, threshold_subgraph, top_m):
+    def apply_reconstruction(temp, G_full, temp_data, sentence_tokens_dict, data, model, reconstruction_model, test_i, edge_subset, pred_graph, folder, device,  config, label_mapping, sentence_mapping, threshold_subgraph, top_m):
     	
 
     	temp_data = temp_data.to(device)
@@ -216,7 +216,7 @@ def pipeline(config):
 
     		if len(non_existing_edges) > 0  : # if equal to 0 that means the temp1 is complete.	
     			edge_index_lp = torch.tensor(non_existing_edges, dtype=torch.long).T  
-    			scores = model_link_prediction(temp_data, edge_index_lp).sigmoid()		
+    			scores = reconstruction_model(temp_data, edge_index_lp).sigmoid()		
     			mask = scores > threshold_subgraph
     			mask = mask.to(edge_index_lp.device)
 	    		filtered_edges = edge_index_lp[:, mask]
@@ -336,8 +336,8 @@ def pipeline(config):
 		    	label_mapping = {node_id: atom_labels[node_id] for node_id in G_whole.nodes()}
 		    		    	
 #----------------------------------------------------------------------------------------------------------------
-		# WHOLE GRAPH MELD	
-    		if link_prediction: 
+		# WHOLE GRAPH 	
+    		if reconstruction_deconstruction: 
 	    		G_whole1 = G_whole.copy()
 	    		existing_edges = set( tuple(sorted(edge)) for edge in G_whole1.edges() )
 	    		nodes = list(G_whole1.nodes())
@@ -350,7 +350,7 @@ def pipeline(config):
 
 	    		if len(possible_edges) > 0: # this is a check for if the graph is complete, thus then we cannot add an edge.
 		    		wh_edge_index = torch.tensor(possible_edges, dtype=torch.long).T.to(device)
-		    		scores = model_link_prediction(data, wh_edge_index).sigmoid()
+		    		scores = reconstruction_model(data, wh_edge_index).sigmoid()
 		    		mask = scores > threshold_whole 
 		    		mask = mask.to(wh_edge_index.device)
 		    		filtered_edges = wh_edge_index[:, mask]
@@ -511,7 +511,7 @@ def pipeline(config):
 #--------------------------------------------------------------------------------------------------------------------
 	 
 	    	
-	    	if link_prediction: 
+	    	if reconstruction_deconstruction: 
 		    	pt_file = pt_files[test_i] 
 		    	pt_path = os.path.join(explanation_saving_dir, pt_file)	
 		    	data_expl = torch.load(pt_path, map_location='cpu')
@@ -549,11 +549,11 @@ def pipeline(config):
 					    	
 					    	
 				    		if pred_graph!=pred_remove:
-				    			successful_msg_test_indices.add(test_i)
+				    			successful_dec_test_indices.add(test_i)
 				    			
 				    			deleted_edges_str = "_".join([f"{a}-{b}" for a, b in edge_subset])
 				    			save_name = f"{test_i}_del_({deleted_edges_str})_pred_orig_{pred_graph}_pred_cf_{pred_remove}.pt"
-				    			save_path = os.path.join(msg, save_name)
+				    			save_path = os.path.join(deconstruction_folder, save_name)
 				    			torch.save(pyg_remove.cpu(), save_path)
 				    						   
 					    		pos = nx.spring_layout(G_whole, seed=42)
@@ -584,8 +584,8 @@ def pipeline(config):
 
 #--------------------------------------------------------------------------------------------------------------------			    
 
-				    		if apply_link_prediction_cf(temp, G_whole , pyg_remove, sentence_tokens_dict, data, model, model_link_prediction, test_i, edge_subset, pred_graph, msg_link_prediction , device,  config, label_mapping, sentence_mapping, threshold_subgraph, top_m):
-				    			successful_msg_lp_test_indices.add(test_i)	
+				    		if apply_reconstruction(temp, G_whole , pyg_remove, sentence_tokens_dict, data, model, reconstruction_model, test_i, edge_subset, pred_graph, dec_rec_folder, device,  config, label_mapping, sentence_mapping, threshold_subgraph, top_m):
+				    			successful_dec_rec_test_indices.add(test_i)	
 					    					    		
 #--------------------------------------------------------------------------------------------------------------------			   			    		
  		    				
@@ -611,11 +611,11 @@ def pipeline(config):
     print(" ")
     
     print("Number of counterfactuals generated by removing edges from the explanation")
-    print(f"{len(successful_msg_test_indices)} /{same_pred_graph_subgraph }")
+    print(f"{len(successful_dec_test_indices)} /{same_pred_graph_subgraph }")
     print(" ")
     
-    print("Counterfactuals with LP addition to msg")
-    print(f"{len(successful_msg_lp_test_indices)}/{same_pred_graph_subgraph }")
+    print("Counterfactuals with dec and rec")
+    print(f"{len(successful_dec_rec_test_indices)}/{same_pred_graph_subgraph }")
     print(" ")
     
          

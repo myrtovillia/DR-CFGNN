@@ -1,8 +1,8 @@
 import subprocess
 import itertools
 
-dataset_name = "graph_sst5"
-max_nodes_list = [10]
+dataset_name = "ba_2motifs_3class"
+max_nodes_list = [6]
 threshold_whole_list = [0.8]
 threshold_subgraph_list = [0.8]
 top_m_list = [2]
