@@ -1,7 +1,12 @@
 import subprocess
 import itertools
+import sys
 
-dataset_name = "ba_2motifs_3class"
+
+dataset_name = None
+for arg in sys.argv[1:]:
+    if arg.startswith("datasets="):
+        dataset_name = arg.split("=")[1]
 max_nodes_list = [6]
 threshold_whole_list = [0.8]
 threshold_subgraph_list = [0.8]
@@ -23,4 +28,5 @@ for max_nodes, top_m, top_r, threshold_whole, threshold_subgraph in itertools.pr
 
     print("Running:", " ".join(cmd))
     subprocess.run(cmd)
+    
 
