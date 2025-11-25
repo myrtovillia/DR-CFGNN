@@ -1,0 +1,257 @@
+models:
+  gnn_saving_dir: ''
+  gnn_name: gcn
+  param:
+    bbbp:
+      learning_rate: 0.001
+      weight_decay: 0.0005
+      milestones: None
+      gamma: None
+      batch_size: 32
+      num_epochs: 200
+      num_early_stop: 0
+      gnn_latent_dim:
+      - 128
+      - 128
+      - 128
+      gnn_dropout: 0.0
+      add_self_loop: true
+      gcn_adj_normalization: true
+      gnn_emb_normalization: false
+      graph_classification: true
+      node_classification: false
+      gnn_nonlinear: relu
+      readout: max
+      fc_latent_dim: []
+      fc_dropout: 0.0
+      fc_nonlinear: relu
+      concate: false
+    graph_sst2:
+      learning_rate: 0.001
+      weight_decay: 0.0
+      milestones: None
+      gamma: None
+      batch_size: 128
+      num_epochs: 50
+      num_early_stop: 0
+      gnn_latent_dim:
+      - 128
+      - 128
+      - 128
+      gnn_dropout: 0.0
+      add_self_loop: true
+      gcn_adj_normalization: true
+      gnn_emb_normalization: false
+      graph_classification: true
+      node_classification: false
+      gnn_nonlinear: relu
+      readout: max
+      fc_latent_dim: []
+      fc_dropout: 0.0
+      fc_nonlinear: relu
+      concate: false
+    graph_sst5:
+      learning_rate: 0.001
+      weight_decay: 0.0
+      milestones: None
+      gamma: None
+      batch_size: 128
+      num_epochs: 50
+      num_early_stop: 0
+      gnn_latent_dim:
+      - 128
+      - 128
+      - 128
+      gnn_dropout: 0.0
+      add_self_loop: true
+      gcn_adj_normalization: true
+      gnn_emb_normalization: false
+      graph_classification: true
+      node_classification: false
+      gnn_nonlinear: relu
+      readout: max
+      fc_latent_dim: []
+      fc_dropout: 0.0
+      fc_nonlinear: relu
+      concate: false
+    twitter:
+      learning_rate: 0.001
+      weight_decay: 0.0
+      milestones: None
+      gamma: None
+      batch_size: 128
+      num_epochs: 50
+      num_early_stop: 0
+      gnn_latent_dim:
+      - 128
+      - 128
+      - 128
+      gnn_dropout: 0.0
+      add_self_loop: true
+      gcn_adj_normalization: true
+      gnn_emb_normalization: false
+      graph_classification: true
+      node_classification: false
+      gnn_nonlinear: relu
+      readout: max
+      fc_latent_dim: []
+      fc_dropout: 0.0
+      fc_nonlinear: relu
+      concate: false
+    ba_shapes:
+      learning_rate: 0.05
+      weight_decay: 0.0005
+      milestones: None
+      gamma: None
+      batch_size: 1
+      num_epochs: 400
+      num_early_stop: 0
+      gnn_latent_dim:
+      - 20
+      - 20
+      - 20
+      gnn_dropout: 0.0
+      add_self_loop: true
+      gcn_adj_normalization: false
+      gnn_emb_normalization: false
+      graph_classification: false
+      node_classification: true
+      gnn_nonlinear: relu
+      readout: identity
+      fc_latent_dim: []
+      fc_dropout: 0.0
+      fc_nonlinear: relu
+      concate: false
+    ba_2motifs:
+      learning_rate: 0.001
+      weight_decay: 0.0
+      milestones: None
+      gamma: None
+      batch_size: 64
+      num_epochs: 800
+      num_early_stop: 0
+      gnn_latent_dim:
+      - 20
+      - 20
+      - 20
+      gnn_dropout: 0.0
+      add_self_loop: true
+      gcn_adj_normalization: false
+      gnn_emb_normalization: false
+      graph_classification: true
+      node_classification: false
+      gnn_nonlinear: relu
+      readout: mean
+      fc_latent_dim: []
+      fc_dropout: 0.0
+      fc_nonlinear: relu
+      concate: false
+    ba_2motifs_3class:
+      learning_rate: 0.001
+      weight_decay: 0.0
+      milestones: None
+      gamma: None
+      batch_size: 64
+      num_epochs: 800
+      num_early_stop: 0
+      gnn_latent_dim:
+      - 20
+      - 20
+      - 20
+      gnn_dropout: 0.0
+      add_self_loop: true
+      gcn_adj_normalization: false
+      gnn_emb_normalization: false
+      graph_classification: true
+      node_classification: false
+      gnn_nonlinear: relu
+      readout: mean
+      fc_latent_dim: []
+      fc_dropout: 0.0
+      fc_nonlinear: relu
+      concate: false
+datasets:
+  dataset_root: /home/myrto/Desktop/codes/3_2026/DIG/benchmarks/xgraph/datasets
+  dataset_name: twitter
+  random_split_flag: false
+  data_split_ratio: None
+  seed: 2
+explainers:
+  explanation_result_dir: ''
+  max_ex_size: 8
+  param:
+    bbbp:
+      rollout: 20
+      high2low: false
+      c_puct: 10.0
+      min_atoms: 5
+      expand_atoms: 12
+      reward_method: mc_l_shapley
+      subgraph_building_method: split
+      verbose: true
+    ba_shapes:
+      rollout: 20
+      high2low: true
+      c_puct: 10.0
+      min_atoms: 5
+      expand_atoms: 20
+      reward_method: Nc_mc_l_shapley
+      subgraph_building_method: split
+      verbose: true
+    graph_sst2:
+      rollout: 20
+      high2low: false
+      c_puct: 10.0
+      min_atoms: 5
+      expand_atoms: 12
+      reward_method: mc_l_shapley
+      subgraph_building_method: split
+      verbose: true
+    graph_sst5:
+      rollout: 20
+      high2low: false
+      c_puct: 10.0
+      min_atoms: 5
+      expand_atoms: 12
+      reward_method: mc_l_shapley
+      subgraph_building_method: split
+      verbose: true
+    twitter:
+      rollout: 20
+      high2low: false
+      c_puct: 5.0
+      min_atoms: 5
+      expand_atoms: 20
+      reward_method: mc_l_shapley
+      subgraph_building_method: split
+      verbose: true
+    ba_2motifs:
+      rollout: 20
+      high2low: true
+      c_puct: 10.0
+      min_atoms: 5
+      expand_atoms: 20
+      reward_method: mc_l_shapley
+      subgraph_building_method: split
+      verbose: true
+    ba_2motifs_3class:
+      rollout: 20
+      high2low: true
+      c_puct: 10.0
+      min_atoms: 5
+      expand_atoms: 20
+      reward_method: mc_l_shapley
+      subgraph_building_method: split
+      verbose: true
+random_seed: 0
+device_id: 0
+record_filename: none
+explain:
+  max_nodes: 8
+  top_m: 1
+  top_r: 1
+  threshold_whole: 0.8
+  threshold_subgraph: 0.8
+run:
+  link_prediction: true
+  random_baselines: true

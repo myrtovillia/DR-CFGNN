@@ -1,4 +1,0 @@
-- datasets=graph_sst5
-- datasets.dataset_root=/home/myrto/Desktop/codes/paper/DIG_ROBUSTNESS/benchmarks/xgraph/datasets
-- models.gnn_saving_dir=/home/myrto/Desktop/codes/paper/DIG_ROBUSTNESS/benchmarks/xgraph/checkpoints
-- explainers.explanation_result_dir=/home/myrto/Desktop/codes/paper/DIG_ROBUSTNESS/benchmarks/xgraph/results
