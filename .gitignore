@@ -1,12 +1,10 @@
 DIG/benchmarks/xgraph/cfexplainer_plots
 DIG/benchmarks/xgraph/checkpoints
-DIG/benchmarks/xgraph/checkpoints_lp
-DIG/benchmarks/xgraph/checkpoints_taxonomy
+DIG/benchmarks/xgraph/checkpoints_reconstruction
 DIG/benchmarks/xgraph/datasets
-DIG/benchmarks/xgraph/MELD
 DIG/benchmarks/xgraph/DR_CFGNN
 DIG/benchmarks/xgraph/results
-DIG/benchmarks/xgraph/results_taxonomy
+
 
 
 

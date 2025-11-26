@@ -5,7 +5,7 @@ import numpy as np
 import sys
 # Make sure local DIG version is used, not the installed one
 print(" ")
-print(" Below are prints from the link_prediction.py")
+print(" Below are prints from the reconstruction")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 print("Updated sys.path:")
 for p in sys.path:
@@ -54,78 +54,55 @@ import dig
 print("Using dig from:", dig.__file__)
 from torch import nn
 from torch.optim.lr_scheduler import OneCycleLR
+from reconstruction_model_hyperparameters import hyperparams
 
 
-'''
-The link prediction script contains the training hyperparameters used for ba_2motifs and ba_2motifs_3class:
-
-For the datasets: graph sst2, twitter and graph sst5 we made the changes below.
-
---Encoder: 2 layers instead of 4, with dropout rate of 0.4
---MLP Decoder: 3 layers instead of 4, delete the second one.
---Hidden channels: 100
---MLP hidden dimension: 256
---Early stopping patience: 10
---Negative sampling ratio: 1
---Disjoint train ratio: 0.4
- 
- 
- 
-  For the datasets: bbbp we made the changes below.
-
---Encoder: 3 layers instead of 4, with dropout rate of 0.1
---MLP Decoder: 3 layers instead of 4, delete the second one.
---Hidden channels: 100
---MLP hidden dimension: 512
---Early stopping patience: 10
---Negative sampling ratio: 1
---Disjoint train ratio: 0.2
-
-'''
-
-class LinkPredictionNet(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, mlp_hidden_dim):
+class reconstruction_network(nn.Module):
+    def __init__(self, in_channels, hp,  one_hot_dim, one_hot_reconst):
         super().__init__()
+        self.hp = hp
+        self.one_hot_dim = one_hot_dim
+        self.one_hot_reconst = one_hot_reconst
+        hidden_channels = hp["hidden_channels"]
+        mlp_hidden_dim = hp["mlp_hidden_dim"]
         
-        self.conv1 = GCNConv(in_channels, hidden_channels)
-        self.bn1 = nn.BatchNorm1d(hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, hidden_channels)
-        self.bn2 = nn.BatchNorm1d(hidden_channels)
-        self.conv3 = GCNConv(hidden_channels, hidden_channels)
-        self.bn3 = nn.BatchNorm1d(hidden_channels)
-        self.conv4 = GCNConv(hidden_channels, hidden_channels)
-        self.bn4 = nn.BatchNorm1d(hidden_channels)
-      
-        self.mlp_decoder = nn.Sequential(
-            nn.Linear(2 * hidden_channels, mlp_hidden_dim),
-            nn.ReLU(),
-            nn.Linear(mlp_hidden_dim, mlp_hidden_dim),
-            nn.ReLU(),
-            nn.Linear( mlp_hidden_dim, mlp_hidden_dim//2),
-            nn.ReLU(),
-            nn.Linear(mlp_hidden_dim//2, 1)
-        )
+ 
+        layers = []
+        bns = []
+        layers.append(GCNConv(in_channels, hidden_channels))
+        bns.append(nn.BatchNorm1d(hidden_channels))
+        for _ in range(hp["num_encoder_layers"] - 1):
+            layers.append(GCNConv(hidden_channels, hidden_channels))
+            bns.append(nn.BatchNorm1d(hidden_channels))
+        self.convs = nn.ModuleList(layers)
+        self.bns = nn.ModuleList(bns)
+        self.mlp_decoder = self.build_decoder(hidden_channels, mlp_hidden_dim, hp["mlp_layers"], one_hot_dim)
+
+
+    def build_decoder(self, hidden_channels, mlp_hidden_dim, mlp_layers, one_hot_dim):
+        
+        if self.one_hot_reconst:
+        	in_dim = 2 * hidden_channels + 2 * self.one_hot_dim
+        else:
+        	in_dim = 2 * hidden_channels
+        layers = []
+        layers.append(nn.Linear(in_dim, mlp_hidden_dim))
+        layers.append(nn.ReLU())
+        if mlp_layers == 4:
+            layers.append(nn.Linear(mlp_hidden_dim, mlp_hidden_dim))
+            layers.append(nn.ReLU())
+        layers.append(nn.Linear(mlp_hidden_dim, mlp_hidden_dim // 2))
+        layers.append(nn.ReLU())
+        layers.append(nn.Linear(mlp_hidden_dim // 2, 1))
+        return nn.Sequential(*layers)
+
 
     def encode(self, x, edge_index):
-        x = self.conv1(x, edge_index)
-        x = self.bn1(x)
-        x = F.relu(x)
-        x = F.dropout(x, p=0.05, training=self.training)
-
-        x = self.conv2(x, edge_index)
-        x = self.bn2(x)
-        x = F.relu(x)
-        x = F.dropout(x, p=0.05, training=self.training)
-
-        x = self.conv3(x, edge_index)
-        x = self.bn3(x)
-        x = F.relu(x)
-        x = F.dropout(x, p=0.05, training=self.training)
-        
-        x = self.conv4(x, edge_index)
-        x = self.bn4(x)
-        x = F.dropout(x, p=0.05, training=self.training)
-
+        for conv, bn in zip(self.convs, self.bns):
+            x = conv(x, edge_index)
+            x = bn(x)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.hp["encoder_dropout"], training=self.training)
         return x
 
     def decode(self, z, edge_label_index):
@@ -134,17 +111,52 @@ class LinkPredictionNet(torch.nn.Module):
         edge_rep = torch.cat([src, dst], dim=-1)
         return self.mlp_decoder(edge_rep).squeeze(-1)
 
-    def forward(self, data, edge_label_index):
-        z = self.encode(data.x, data.edge_index)
-        return self.decode(z, edge_label_index)
+    
+    
+    def forward(self, data, edge_label_index, one_hot_reconst, class_one_hot=None):
+    	 z = self.encode(data.x, data.edge_index)
+    	 
+    	 if one_hot_reconst:
+    	 	if class_one_hot is None:   	 
+    	 		if hasattr(data, "ptr"):
+    	 			one_hot_list = []
+    	 			for i in range(data.ptr.size(0) - 1):
+    	 				start, end = data.ptr[i].item(), data.ptr[i+1].item()
+    	 				num_nodes = end - start
+    	 				label = data.y[i]
+    	 				one_hot = F.one_hot(label, num_classes=self.one_hot_dim).float()
+    	 				one_hot_nodes = one_hot.unsqueeze(0).repeat(num_nodes,1)
+    	 				one_hot_list.append(one_hot_nodes)
+    	 			one_hot_all = torch.cat(one_hot_list, dim=0)
+    	 		else:
+    	 			num_nodes = data.x.size(0)
+    	 			
+    	 			label = data.y.item()
+    	 			one_hot = F.one_hot(torch.tensor(label, device=data.x.device),num_classes=self.one_hot_dim).float()
+    	 			one_hot_all = one_hot.unsqueeze(0).repeat(num_nodes,1)
+    	 	else:
+    	 		num_nodes = data.x.size(0)
+    	 		one_hot_all = class_one_hot.unsqueeze(0).repeat(num_nodes,1)
+    	 	z = torch.cat([z, one_hot_all], dim=-1)
+    	 return self.decode(z, edge_label_index)
 
 
 
 
 
-def run_link_prediction_from_scratch(all_graphs, device, in_channels):
+def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num_classes ):
 
 
+    	
+    if one_hot_reconst:
+        for graph in all_graphs:
+            graph.one_hot_reconst = F.one_hot(graph.y, num_classes=num_classes).float()
+    else:
+        for graph in all_graphs:
+            graph.one_hot_reconst = None
+
+    	
+    	
     random.shuffle(all_graphs)
     num_total = len(all_graphs)
     num_train = int(0.75 * num_total)
@@ -154,8 +166,8 @@ def run_link_prediction_from_scratch(all_graphs, device, in_channels):
     test_graphs = all_graphs[num_train + num_val: ]
     
  
-    transform_train = RandomLinkSplit(num_val=0.0, num_test=0.0, is_undirected=True, split_labels=True,add_negative_train_samples=True,  neg_sampling_ratio=2.5, disjoint_train_ratio=0.3)
-    transform       = RandomLinkSplit(num_val=0.1, num_test=0.1, is_undirected=True, split_labels=True,add_negative_train_samples=False, neg_sampling_ratio=2.5)
+    transform_train = RandomLinkSplit(num_val=0.0, num_test=0.0, is_undirected=True, split_labels=True,add_negative_train_samples=True,  neg_sampling_ratio=hp["neg_ratio"], disjoint_train_ratio=hp["disjoint_train_ratio"])
+    transform       = RandomLinkSplit(num_val=0.1, num_test=0.1, is_undirected=True, split_labels=True,add_negative_train_samples=False, neg_sampling_ratio=hp["neg_ratio"])
     
     
     MIN_EDGES = 4 
@@ -211,9 +223,11 @@ def run_link_prediction_from_scratch(all_graphs, device, in_channels):
 
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=16)
+    
+    
 
     epochs=150
-    model = LinkPredictionNet(in_channels, hidden_channels =200 , mlp_hidden_dim=4000).to(device)
+    model = reconstruction_network(in_channels, hp=hp, one_hot_dim=num_classes, one_hot_reconst=one_hot_reconst).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
     scheduler = OneCycleLR(optimizer,
                          max_lr=1e-4,  
@@ -225,7 +239,7 @@ def run_link_prediction_from_scratch(all_graphs, device, in_channels):
 
     best_val_auc = 0
     best_model_state = None
-    patience = 20
+    patience =hp["early_stop_patience"]
     patience_counter = 0
 
     for epoch in range(epochs):
@@ -237,17 +251,10 @@ def run_link_prediction_from_scratch(all_graphs, device, in_channels):
         	
 
         	batch = batch.to(device)
-        	optimizer.zero_grad()
-        	z = model.encode(batch.x, batch.edge_index) 
-        	# adding negative edges dynamically
-        	#all_edges = torch.cat([batch.edge_index, batch.pos_edge_label_index, batch.pos_edge_label_index.flip(0)], dim=1)
-        	#neg_edge_index = negative_sampling(edge_index=all_edges,num_nodes=batch.num_nodes,num_neg_samples=2* batch.pos_edge_label_index.size(1), method='sparse')
-        	#edge_label_index = torch.cat([batch.pos_edge_label_index, neg_edge_index], dim=-1)
-        	#edge_label = torch.cat([torch.ones(batch.pos_edge_label_index.size(1), device=device), torch.zeros(neg_edge_index.size(1),device=device)  ])
-        	
+        	optimizer.zero_grad()      	
         	edge_label_index = torch.cat([batch.pos_edge_label_index, batch.neg_edge_label_index], dim=-1)
         	edge_label = torch.cat([batch.pos_edge_label, batch.neg_edge_label])
-
+        	
 
         	#pos_edge_set = set(map(tuple, batch.pos_edge_label_index.t().tolist()))
         	#neg_edge_set = set(map(tuple, batch.neg_edge_label_index.t().tolist()))
@@ -256,8 +263,10 @@ def run_link_prediction_from_scratch(all_graphs, device, in_channels):
         	#reversed_overlap_2 = sum((v, u) in neg_edge_set for (u, v) in pos_edge_set)
         	#print(reversed_overlap_2)
         	
+        	out = model(batch, edge_label_index, one_hot_reconst=one_hot_reconst, class_one_hot=None)
+        	
 
-        	out = model.decode(z, edge_label_index)
+        
         	loss = criterion(out, edge_label.float())
         	loss.backward()
         	torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -271,6 +280,8 @@ def run_link_prediction_from_scratch(all_graphs, device, in_channels):
         train_preds = torch.cat(train_preds).numpy()
         train_labels = torch.cat(train_labels).numpy()
         train_auc = roc_auc_score(train_labels, train_preds)
+        
+
 
 
         model.eval()
@@ -279,11 +290,12 @@ def run_link_prediction_from_scratch(all_graphs, device, in_channels):
         with torch.no_grad():
             for graph in val_loader:
 
-                graph = graph.to(device)
-                z = model.encode(graph.x, graph.edge_index)
+                graph = graph.to(device)            
                 edge_label_index = torch.cat([graph.pos_edge_label_index, graph.neg_edge_label_index], dim=-1)
                 edge_label = torch.cat([graph.pos_edge_label, graph.neg_edge_label])
-                out = model.decode(z, edge_label_index)
+                
+                out = model(graph, edge_label_index, one_hot_reconst=one_hot_reconst, class_one_hot=None)
+                
                 loss = criterion(out, edge_label.float())
                 val_total_loss += loss.item()
                 val_preds.append(out.sigmoid().cpu())
@@ -314,11 +326,10 @@ def run_link_prediction_from_scratch(all_graphs, device, in_channels):
     test_preds, test_labels = [], []
     with torch.no_grad():
         for graph in test_dataset:
-            graph = graph.to(device)
-            z = model.encode(graph.x, graph.edge_index)
+            graph = graph.to(device)          
             edge_label_index = torch.cat([graph.pos_edge_label_index, graph.neg_edge_label_index], dim=-1)
             edge_label = torch.cat([ graph.pos_edge_label, graph.neg_edge_label])
-            out = model.decode(z, edge_label_index)
+            out = model(graph, edge_label_index, one_hot_reconst=one_hot_reconst, class_one_hot=F.one_hot(torch.tensor(1, device=device), num_classes=num_classes).float())
             test_preds.append(out.sigmoid().cpu())
             test_labels.append(edge_label.cpu())
 
@@ -338,6 +349,9 @@ def pipeline(config):
     config.models.param = config.models.param[config.datasets.dataset_name]
     config.explainers.param = config.explainers.param[config.datasets.dataset_name]
     config.models.param.add_self_loop = False
+    one_hot_reconst=config.one_hot_reconst
+    print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    print(one_hot_reconst)
     
     if torch.cuda.is_available():
         device = torch.device('cuda', index=config.device_id)
@@ -369,22 +383,24 @@ def pipeline(config):
     	if i not in test_indices:
     		train_graphs.append(graph)
     in_channels = dataset.num_node_features
-
+  
+    hp = hyperparams(dataset)
+    model_reconstruction = run_reconstruction(train_graphs, device, in_channels, hp,  one_hot_reconst, dataset.num_classes )
     
-    model_link_prediction = run_link_prediction_from_scratch(train_graphs, device, in_channels)
     
-    lp_save_dir = os.path.join(os.path.dirname(__file__), 'checkpoints_lp')
-    os.makedirs(lp_save_dir, exist_ok=True)
-    save_path = os.path.join(lp_save_dir, f"model_lp_{config.datasets.dataset_name}.pt")
-    torch.save(model_link_prediction.state_dict(), save_path)
-    print(f"Saved link prediction model at: {save_path}")
+    rec_save_dir = os.path.join(os.path.dirname(__file__), 'checkpoints_reconstruction')
+    os.makedirs(rec_save_dir, exist_ok=True)
+    save_path = os.path.join(rec_save_dir, f"reconstruction_model_{config.datasets.dataset_name}.pt")
+    torch.save(model_reconstruction.state_dict(), save_path)
+    print(f"Saved reconstruction model at: {save_path}")
+  
 
        
 if __name__ == '__main__':
     import sys
     sys.argv.append(f"datasets.dataset_root={os.path.join(os.path.dirname(__file__), 'datasets')}")
     sys.argv.append(f"models.gnn_saving_dir={os.path.join(os.path.dirname(__file__), 'checkpoints')}")
-    sys.argv.append(f"explainers.explanation_result_dir={os.path.join(os.path.dirname(__file__), 'results')}")
+
 
     pipeline()
     

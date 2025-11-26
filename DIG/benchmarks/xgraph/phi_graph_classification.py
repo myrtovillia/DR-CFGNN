@@ -55,10 +55,14 @@ from dig.xgraph.method.subgraphx import PlotUtils
 from dig.xgraph.evaluation import XCollector
 from dig.xgraph.method.subgraphx import find_closest_node_result
 from dig.xgraph.utils.compatibility import compatible_state_dict
-from link_prediction import LinkPredictionNet  
+#from link_prediction import LinkPredictionNet  
+from reconstruction_process import reconstruction_network
 from collections import Counter
+from reconstruction_model_hyperparameters import hyperparams
 import time
 from itertools import product
+
+import torch.nn.functional as F
 IS_FRESH = False
 import dig
 print("Using dig from:", dig.__file__)
@@ -79,6 +83,9 @@ def find_closest_node_result(results, max_nodes):
 @hydra.main(config_path="config", config_name="config")
 def pipeline(config):
 
+    
+
+
     reconstruction_deconstruction = config.run.reconstruction_deconstruction
     random_baselines = config.run.random_baselines
     
@@ -87,10 +94,18 @@ def pipeline(config):
     top_r = config.explain.top_r
     threshold_whole = config.explain.threshold_whole
     threshold_subgraph = config.explain.threshold_subgraph
-
+    
     config.models.param = config.models.param[config.datasets.dataset_name]
     config.explainers.param = config.explainers.param[config.datasets.dataset_name]
     config.models.param.add_self_loop = False
+    one_hot_reconst=config.one_hot_reconst
+
+    print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    print(one_hot_reconst)
+
+    
+    
+    
     if not os.path.isdir(config.record_filename):
         os.makedirs(config.record_filename)
     config.record_filename = os.path.join(config.record_filename, f"{config.datasets.dataset_name}.json")
@@ -158,9 +173,12 @@ def pipeline(config):
 	   	
     
     if reconstruction_deconstruction:
-    	reconstruction_model = LinkPredictionNet(in_channels=dataset.num_features, hidden_channels=200, mlp_hidden_dim=4000).to(device)   # hidden_channels=100, mlp_hidden_dim=256 for twitter, sst2, sst5
-    	lp_model_path = os.path.join(os.path.dirname(__file__), 'checkpoints_lp', f"model_lp_{config.datasets.dataset_name}.pt")
-    	reconstruction_model.load_state_dict(torch.load(lp_model_path, map_location=device))
+    	hp = hyperparams(dataset)
+    	
+    	reconstruction_model = reconstruction_network(in_channels=dataset.num_features, hp=hp, one_hot_dim=dataset.num_classes, one_hot_reconst=one_hot_reconst).to(device)   
+    	 
+    	model_path = os.path.join(os.path.dirname(__file__), 'checkpoints_reconstruction', f"reconstruction_model_{config.datasets.dataset_name}.pt")
+    	reconstruction_model.load_state_dict(torch.load(model_path, map_location=device))
     	reconstruction_model.eval()
 
     
@@ -215,8 +233,9 @@ def pipeline(config):
     					non_existing_edges.append(edge)
 
     		if len(non_existing_edges) > 0  : # if equal to 0 that means the temp1 is complete.	
-    			edge_index_lp = torch.tensor(non_existing_edges, dtype=torch.long).T  
-    			scores = reconstruction_model(temp_data, edge_index_lp).sigmoid()		
+    			edge_index_lp = torch.tensor(non_existing_edges, dtype=torch.long).T 
+    			temp_data.y = data.y #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! na to tsekarw!!!!!!!
+    			scores = reconstruction_model(temp_data, edge_index_lp,  one_hot_reconst, class_one_hot=None).sigmoid()		
     			mask = scores > threshold_subgraph
     			mask = mask.to(edge_index_lp.device)
 	    		filtered_edges = edge_index_lp[:, mask]
@@ -350,7 +369,9 @@ def pipeline(config):
 
 	    		if len(possible_edges) > 0: # this is a check for if the graph is complete, thus then we cannot add an edge.
 		    		wh_edge_index = torch.tensor(possible_edges, dtype=torch.long).T.to(device)
-		    		scores = reconstruction_model(data, wh_edge_index).sigmoid()
+
+		    		scores = reconstruction_model(data, wh_edge_index, one_hot_reconst, class_one_hot=F.one_hot(torch.tensor(1, device=device), num_classes=dataset.num_classes)).sigmoid()
+
 		    		mask = scores > threshold_whole 
 		    		mask = mask.to(wh_edge_index.device)
 		    		filtered_edges = wh_edge_index[:, mask]
@@ -374,6 +395,9 @@ def pipeline(config):
 				    		pyg_whole = pyg_whole.to(device)
 				    		pyg_whole.edge_index = add_remaining_self_loops(pyg_whole.edge_index, num_nodes=pyg_whole.num_nodes)[0]
 				    		pyg_whole.x = data.x
+				    		logits = model(pyg_whole)         
+				    		probs = F.softmax(logits, dim=-1)
+				    		print("Softmax probabilities:", probs)
 				    		pred_whole = model(pyg_whole).argmax(-1).item()
 				    		
 				    		if pred_graph!=pred_whole:
@@ -401,6 +425,10 @@ def pipeline(config):
 				    			else:
 				    				labels_to_use = {node: f"{node}" for node in G_whole.nodes}
 				    				nx.draw_networkx_labels(G_whole, pos, labels=labels_to_use)
+				    				
+				    			prob_str = ", ".join([f"{p:.2f}" for p in probs.detach().cpu().numpy()[0]])
+				    			plt.title(f"{sentence_text if 'sentence_text' in locals() else ''}\nSoftmax: [{prob_str}]")
+
 				    			plt.axis('off')
 				    			plt.tight_layout()
 				    			img_path = save_path.replace('.pt', '.png')
