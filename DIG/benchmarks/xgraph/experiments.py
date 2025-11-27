@@ -9,8 +9,8 @@ for arg in sys.argv[1:]:
     if arg.startswith("datasets="):
         dataset_name = arg.split("=")[1]
 max_nodes_list = [6]
-threshold_whole_list = [0.95]
-threshold_subgraph_list = [0.95]
+threshold_whole_list = [0.9]
+threshold_subgraph_list = [0.9]
 top_m_list = [1]
 top_r_list = [2]
 

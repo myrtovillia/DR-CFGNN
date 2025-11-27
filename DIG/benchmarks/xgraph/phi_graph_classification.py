@@ -84,8 +84,10 @@ def find_closest_node_result(results, max_nodes):
 def pipeline(config):
 
     
-
-
+    predifined_cf_class=1
+    
+    
+    
     reconstruction_deconstruction = config.run.reconstruction_deconstruction
     random_baselines = config.run.random_baselines
     
@@ -216,7 +218,7 @@ def pipeline(config):
 
 #---------------------------------------------------------------------------------------------------------------    	
 				    		
-    def apply_reconstruction(temp, G_full, temp_data, sentence_tokens_dict, data, model, reconstruction_model, test_i, edge_subset, pred_graph, folder, device,  config, label_mapping, sentence_mapping, threshold_subgraph, top_m):
+    def apply_reconstruction(temp, G_full, temp_data, sentence_tokens_dict, data, model, reconstruction_model, test_i, edge_subset, pred_graph, folder, device,  config, label_mapping, sentence_mapping, threshold_subgraph, top_m, predifined_cf_class):
     	
 
     	temp_data = temp_data.to(device)
@@ -235,7 +237,11 @@ def pipeline(config):
     		if len(non_existing_edges) > 0  : # if equal to 0 that means the temp1 is complete.	
     			edge_index_lp = torch.tensor(non_existing_edges, dtype=torch.long).T 
     			temp_data.y = data.y #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! na to tsekarw!!!!!!!
-    			scores = reconstruction_model(temp_data, edge_index_lp,  one_hot_reconst, class_one_hot=None).sigmoid()		
+    			scores = reconstruction_model(temp_data, edge_index_lp,  one_hot_reconst, class_one_hot=F.one_hot(torch.tensor(predifined_cf_class, device=device), num_classes=dataset.num_classes).float()).sigmoid()	
+    			
+
+
+
     			mask = scores > threshold_subgraph
     			mask = mask.to(edge_index_lp.device)
 	    		filtered_edges = edge_index_lp[:, mask]
@@ -370,7 +376,7 @@ def pipeline(config):
 	    		if len(possible_edges) > 0: # this is a check for if the graph is complete, thus then we cannot add an edge.
 		    		wh_edge_index = torch.tensor(possible_edges, dtype=torch.long).T.to(device)
 
-		    		scores = reconstruction_model(data, wh_edge_index, one_hot_reconst, class_one_hot=F.one_hot(torch.tensor(1, device=device), num_classes=dataset.num_classes)).sigmoid()
+		    		scores = reconstruction_model(data, wh_edge_index, one_hot_reconst, class_one_hot=F.one_hot(torch.tensor(predifined_cf_class, device=device), num_classes=dataset.num_classes).float()).sigmoid()
 
 		    		mask = scores > threshold_whole 
 		    		mask = mask.to(wh_edge_index.device)
@@ -612,7 +618,7 @@ def pipeline(config):
 
 #--------------------------------------------------------------------------------------------------------------------			    
 
-				    		if apply_reconstruction(temp, G_whole , pyg_remove, sentence_tokens_dict, data, model, reconstruction_model, test_i, edge_subset, pred_graph, dec_rec_folder, device,  config, label_mapping, sentence_mapping, threshold_subgraph, top_m):
+				    		if apply_reconstruction(temp, G_whole , pyg_remove, sentence_tokens_dict, data, model, reconstruction_model, test_i, edge_subset, pred_graph, dec_rec_folder, device,  config, label_mapping, sentence_mapping, threshold_subgraph, top_m, predifined_cf_class):
 				    			successful_dec_rec_test_indices.add(test_i)	
 					    					    		
 #--------------------------------------------------------------------------------------------------------------------			   			    		

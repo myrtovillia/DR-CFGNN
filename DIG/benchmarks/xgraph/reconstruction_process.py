@@ -57,6 +57,11 @@ from torch.optim.lr_scheduler import OneCycleLR
 from reconstruction_model_hyperparameters import hyperparams
 
 
+
+
+
+
+
 class reconstruction_network(nn.Module):
     def __init__(self, in_channels, hp,  one_hot_dim, one_hot_reconst):
         super().__init__()
@@ -66,7 +71,6 @@ class reconstruction_network(nn.Module):
         hidden_channels = hp["hidden_channels"]
         mlp_hidden_dim = hp["mlp_hidden_dim"]
         
- 
         layers = []
         bns = []
         layers.append(GCNConv(in_channels, hidden_channels))
@@ -77,12 +81,17 @@ class reconstruction_network(nn.Module):
         self.convs = nn.ModuleList(layers)
         self.bns = nn.ModuleList(bns)
         self.mlp_decoder = self.build_decoder(hidden_channels, mlp_hidden_dim, hp["mlp_layers"], one_hot_dim)
+        
+        if one_hot_reconst:
+        	#self.class_proj = nn.Linear(self.one_hot_dim, hp["hidden_channels"])
+        	self.class_proj = nn.Sequential(nn.Linear(self.one_hot_dim, hidden_channels),nn.ReLU(),nn.Linear(hidden_channels, hidden_channels))
+
 
 
     def build_decoder(self, hidden_channels, mlp_hidden_dim, mlp_layers, one_hot_dim):
         
         if self.one_hot_reconst:
-        	in_dim = 2 * hidden_channels + 2 * self.one_hot_dim
+        	in_dim = 4 * hidden_channels 
         else:
         	in_dim = 2 * hidden_channels
         layers = []
@@ -113,7 +122,7 @@ class reconstruction_network(nn.Module):
 
     
     
-    def forward(self, data, edge_label_index, one_hot_reconst, class_one_hot=None):
+    def forward(self, data, edge_label_index, one_hot_reconst, class_one_hot):
     	 z = self.encode(data.x, data.edge_index)
     	 
     	 if one_hot_reconst:
@@ -130,14 +139,19 @@ class reconstruction_network(nn.Module):
     	 			one_hot_all = torch.cat(one_hot_list, dim=0)
     	 		else:
     	 			num_nodes = data.x.size(0)
-    	 			
     	 			label = data.y.item()
     	 			one_hot = F.one_hot(torch.tensor(label, device=data.x.device),num_classes=self.one_hot_dim).float()
     	 			one_hot_all = one_hot.unsqueeze(0).repeat(num_nodes,1)
     	 	else:
+
     	 		num_nodes = data.x.size(0)
     	 		one_hot_all = class_one_hot.unsqueeze(0).repeat(num_nodes,1)
-    	 	z = torch.cat([z, one_hot_all], dim=-1)
+    	 		
+
+    	 	one_hot_embed = F.relu(self.class_proj(one_hot_all))
+
+    	 	z = torch.cat([z, one_hot_embed], dim=-1)
+
     	 return self.decode(z, edge_label_index)
 
 
@@ -226,7 +240,7 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
     
     
 
-    epochs=150
+    epochs=1
     model = reconstruction_network(in_channels, hp=hp, one_hot_dim=num_classes, one_hot_reconst=one_hot_reconst).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
     scheduler = OneCycleLR(optimizer,
@@ -329,7 +343,7 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
             graph = graph.to(device)          
             edge_label_index = torch.cat([graph.pos_edge_label_index, graph.neg_edge_label_index], dim=-1)
             edge_label = torch.cat([ graph.pos_edge_label, graph.neg_edge_label])
-            out = model(graph, edge_label_index, one_hot_reconst=one_hot_reconst, class_one_hot=F.one_hot(torch.tensor(1, device=device), num_classes=num_classes).float())
+            out = model(graph, edge_label_index, one_hot_reconst=one_hot_reconst, class_one_hot=None)
             test_preds.append(out.sigmoid().cpu())
             test_labels.append(edge_label.cpu())
 
@@ -388,7 +402,7 @@ def pipeline(config):
     model_reconstruction = run_reconstruction(train_graphs, device, in_channels, hp,  one_hot_reconst, dataset.num_classes )
     
     
-    rec_save_dir = os.path.join(os.path.dirname(__file__), 'checkpoints_reconstruction')
+    rec_save_dir = os.path.join(os.path.dirname(__file__), f'checkpoints_reconstruction_{one_hot_reconst}')
     os.makedirs(rec_save_dir, exist_ok=True)
     save_path = os.path.join(rec_save_dir, f"reconstruction_model_{config.datasets.dataset_name}.pt")
     torch.save(model_reconstruction.state_dict(), save_path)
