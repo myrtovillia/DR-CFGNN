@@ -84,7 +84,7 @@ def find_closest_node_result(results, max_nodes):
 def pipeline(config):
 
     
-    predifined_cf_class=1
+    predifined_cf_class=0
     
     
     
@@ -179,7 +179,7 @@ def pipeline(config):
     	
     	reconstruction_model = reconstruction_network(in_channels=dataset.num_features, hp=hp, one_hot_dim=dataset.num_classes, one_hot_reconst=one_hot_reconst).to(device)   
     	 
-    	model_path = os.path.join(os.path.dirname(__file__), 'checkpoints_reconstruction', f"reconstruction_model_{config.datasets.dataset_name}.pt")
+    	model_path = os.path.join(os.path.dirname(__file__), f'checkpoints_reconstruction_{one_hot_reconst}', f"reconstruction_model_{config.datasets.dataset_name}.pt")
     	reconstruction_model.load_state_dict(torch.load(model_path, map_location=device))
     	reconstruction_model.eval()
 
@@ -236,8 +236,7 @@ def pipeline(config):
 
     		if len(non_existing_edges) > 0  : # if equal to 0 that means the temp1 is complete.	
     			edge_index_lp = torch.tensor(non_existing_edges, dtype=torch.long).T 
-    			temp_data.y = data.y #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! na to tsekarw!!!!!!!
-    			scores = reconstruction_model(temp_data, edge_index_lp,  one_hot_reconst, class_one_hot=F.one_hot(torch.tensor(predifined_cf_class, device=device), num_classes=dataset.num_classes).float()).sigmoid()	
+    			scores = reconstruction_model(temp_data, edge_index_lp,  one_hot_reconst, class_one_hot=predifined_cf_class).float().sigmoid()	
     			
 
 
@@ -376,7 +375,8 @@ def pipeline(config):
 	    		if len(possible_edges) > 0: # this is a check for if the graph is complete, thus then we cannot add an edge.
 		    		wh_edge_index = torch.tensor(possible_edges, dtype=torch.long).T.to(device)
 
-		    		scores = reconstruction_model(data, wh_edge_index, one_hot_reconst, class_one_hot=F.one_hot(torch.tensor(predifined_cf_class, device=device), num_classes=dataset.num_classes).float()).sigmoid()
+
+		    		scores = reconstruction_model(data, wh_edge_index, one_hot_reconst, class_one_hot=predifined_cf_class).float().sigmoid()
 
 		    		mask = scores > threshold_whole 
 		    		mask = mask.to(wh_edge_index.device)
