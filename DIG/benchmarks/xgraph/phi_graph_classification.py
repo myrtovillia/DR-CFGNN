@@ -84,7 +84,7 @@ def find_closest_node_result(results, max_nodes):
 def pipeline(config):
 
     
-    predifined_cf_class=0
+    predifined_cf_class=2
     
     
     
@@ -102,10 +102,6 @@ def pipeline(config):
     config.models.param.add_self_loop = False
     one_hot_reconst=config.one_hot_reconst
 
-    print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-    print(one_hot_reconst)
-
-    
     
     
     if not os.path.isdir(config.record_filename):
@@ -201,7 +197,7 @@ def pipeline(config):
     
     
     # ---FOLDERS TO SAVE THE RESULTS---
-    base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN", f"counterfactuals_{config.datasets.dataset_name}_max_nodes_{max_nodes}_thr_whole_{threshold_whole}_thr_sub_{threshold_subgraph}_m_{top_m}_r_{top_r}")
+    base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN", f"counterfactuals_{config.datasets.dataset_name}_max_nodes_{max_nodes}_thr_whole_{threshold_whole}_thr_sub_{threshold_subgraph}_m_{top_m}_r_{top_r}_one_hot_{one_hot_reconst}")
 
     if reconstruction_deconstruction:
     	dec_rec_folder = os.path.join(base_counterfactuals_dir, "DR_CFGNN_Dec_Rec") 
@@ -329,11 +325,33 @@ def pipeline(config):
    
     s2=0
     
+    motif_nodes = set(range(20, 25)) 
+    
     for test_i in test_indices:
     	print(test_i)    
     	data = dataset[test_i]
     	data = data.to(device)  #ba_2motifs, ba_2motifs_3class, sst2, twitter, sst5 contain (0-1) and (1-0) etc
     	data.edge_index = add_remaining_self_loops(data.edge_index, num_nodes=data.num_nodes)[0]
+    	
+    	
+    	
+    	
+    	# ----------------------------
+    	# REMOVE ONE RANDOM MOTIF EDGE
+    	src, dst = data.edge_index    	
+    	edge_list = list(zip(src.tolist(), dst.tolist()))
+    	motif_edges = [(u, v) for (u, v) in edge_list if u in motif_nodes and v in motif_nodes and u != v]
+    	edge_to_remove = random.choice(motif_edges)
+    	rev = (edge_to_remove[1], edge_to_remove[0])
+    	remove_set = {edge_to_remove, rev}
+    	keep_mask = torch.tensor([(u, v) not in remove_set for (u, v) in edge_list], dtype=torch.bool,device=data.edge_index.device) 
+    	data.edge_index = data.edge_index[:, keep_mask]		
+    	# ----------------------------
+    	
+    
+
+    	
+    	
     	pred_graph = model(data).argmax(-1).item()	
     	all_preds.append(pred_graph)
     	all_labels.append(data.y.item())   	

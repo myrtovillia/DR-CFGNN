@@ -40,8 +40,8 @@ Alternatively, download the factual explanations from SubgraphX from <<https://d
 
 Train the reconstruction step : 
 
-`python reconstruction_process.py datasets=ba_2motifs one_hot_reconst=True`
-
+`python reconstruction_process.py datasets=ba_2motifs one_hot_reconst=True` or
+`python reconstruction_process.py datasets=ba_2motifs one_hot_reconst=False`
 This will create the folder checkpoints_reconstruction_True.
 
 

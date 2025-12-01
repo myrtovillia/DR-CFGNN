@@ -72,7 +72,7 @@ class reconstruction_network(nn.Module):
         mlp_hidden_dim = hp["mlp_hidden_dim"]
         
         
-        self.proj_dim=100
+        self.proj_dim=200
         
         
         layers = []

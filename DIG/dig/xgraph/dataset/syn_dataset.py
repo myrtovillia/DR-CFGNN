@@ -107,6 +107,47 @@ def convert_ba2motifs_to_three_classes(data_list, motif_nodes=[20, 21, 22, 23, 2
 
 
 
+def create_ba_3motifs(data_list, motif_nodes=[20, 21, 22, 23, 24], seed=42):
+    import random
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+    class_0 = [g for g in data_list if g.y.item() == 0]
+    class_1 = [g for g in data_list if g.y.item() == 1]
+
+    n0 = len(class_0) // 3
+    n1 = len(class_1) // 3
+
+    idx0 = random.sample(range(len(class_0)), n0)
+    idx1 = random.sample(range(len(class_1)), n1)
+
+
+    def add_full_clique(data, motif_nodes):
+        src, dst = data.edge_index
+        edge_set = set(zip(src.tolist(), dst.tolist())) # both directions
+        
+        for u in motif_nodes:
+            for v in motif_nodes:
+                if u != v:
+                    edge_set.add((u, v))
+
+        new_src, new_dst = zip(*edge_set)      
+        data.edge_index = torch.tensor([new_src, new_dst], dtype=torch.long)
+        data.y = torch.tensor([2])
+        return data
+
+    for i in idx0:
+        class_0[i] = add_full_clique(class_0[i], motif_nodes)
+
+    for i in idx1:
+        class_1[i] = add_full_clique(class_1[i], motif_nodes)
+	
+    return class_0 + class_1
+
+
+
+
+
 
 
 class SynGraphDataset(InMemoryDataset):
@@ -138,7 +179,10 @@ class SynGraphDataset(InMemoryDataset):
         'tree_grid': ['Tree_Grid', 'Tree_Grid.pkl', 'Tree_Grid'],
         'tree_cycle': ['Tree_Cycle', 'Tree_Cycles.pkl', 'Tree_Cycles'],
         'ba_2motifs': ['BA_2Motifs', 'BA_2Motifs.pkl', 'BA_2Motifs'],
-        'ba_2motifs_3class': ['BA_2Motifs_3class', 'BA_2Motifs.pkl', 'BA_2Motifs'], #
+        'ba_2motifs_3class': ['BA_2Motifs_3class', 'BA_2Motifs.pkl', 'BA_2Motifs'], 
+        
+        'ba_3motifs': ['BA_3Motifs', 'BA_2Motifs.pkl', 'BA_2Motifs'] #!!
+
     }
 
     def __init__(self, root, name, transform=None, pre_transform=None):
@@ -167,13 +211,17 @@ class SynGraphDataset(InMemoryDataset):
         path = download_url(url, self.raw_dir)
 
     def process(self):
-        if self.name.lower() in ['ba_2motifs', 'ba_2motifs_3class']:
+        if self.name.lower() in ['ba_2motifs', 'ba_2motifs_3class', 'ba_3motifs']:
         
             print("CHECK FROM SYN_DATASET.PY")
             data_list = read_ba2motif_data(self.raw_dir, self.names[self.name][2])
             
             if self.name.lower() == 'ba_2motifs_3class':
             	data_list = convert_ba2motifs_to_three_classes(data_list)
+            	
+            if self.name.lower() == 'ba_3motifs':
+            	data_list = create_ba_3motifs(data_list)
+
 
             if self.pre_filter is not None:
                 data_list = [self.get(idx) for idx in range(len(self))]
@@ -196,7 +244,7 @@ class SynGraphDataset(InMemoryDataset):
         return '{}({})'.format(self.names[self.name][0], len(self))
 
     def gen_motif_edge_mask(self, data, node_idx=0, num_hops=3):
-        if self.name in ['ba_2motifs', 'ba_2motifs_3class']:
+        if self.name in ['ba_2motifs', 'ba_2motifs_3class', 'ba_3motifs']:
             return torch.logical_and(data.edge_index[0] >= 20, data.edge_index[1] >= 20)
         elif self.name in ['ba_shapes', 'ba_community', 'tree_grid', 'tree_cycle']:
             """ selection in a loop way to fetch all the nodes in the connected motifs """
@@ -233,6 +281,15 @@ class SynGraphDataset(InMemoryDataset):
         data.test_mask = torch.from_numpy(test_mask)
         data.edge_label_matrix = torch.from_numpy(edge_label_matrix)
         return data
+
+
+
+
+
+
+
+
+
 
 
 class BA_LRP(InMemoryDataset):
@@ -372,4 +429,4 @@ class BA_LRP(InMemoryDataset):
 
 if __name__ == '__main__':
     # lrp_dataset = BA_LRP(root='.', num_per_class=10000)
-    syn_dataset = SynGraphDataset(root='.', name='BA_2motifs_3class')
+    syn_dataset = SynGraphDataset(root='.', name='BA_3motifs')

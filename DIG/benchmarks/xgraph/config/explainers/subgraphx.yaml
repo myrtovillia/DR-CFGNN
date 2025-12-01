@@ -65,3 +65,12 @@ param:
     reward_method: 'mc_l_shapley'
     subgraph_building_method: 'split'
     verbose: True
+  ba_3motifs:
+    rollout: 20
+    high2low: True
+    c_puct: 10.0
+    min_atoms: 5
+    expand_atoms: 20
+    reward_method: 'mc_l_shapley'
+    subgraph_building_method: 'split'
+    verbose: True

@@ -175,7 +175,7 @@ class PlotUtils(object):
 
     def plot(self, graph, nodelist, figname, title_sentence=None, **kwargs):
         """ plot function for different dataset """
-        if self.dataset_name.lower() in ['ba_2motifs', 'ba_lrp', 'ba_2motifs_3class']:
+        if self.dataset_name.lower() in ['ba_2motifs', 'ba_lrp', 'ba_2motifs_3class','ba_3motifs' ]:
             self.plot_ba2motifs(graph, nodelist, title_sentence=title_sentence, figname=figname)
         elif self.dataset_name.lower() in ['mutag'] + list(MoleculeNet.names.keys()):
             x = kwargs.get('x')
