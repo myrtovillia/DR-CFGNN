@@ -10,8 +10,8 @@ for arg in sys.argv[1:]:
         dataset_name = arg.split("=")[1]
 max_nodes_list = [6]
 threshold_whole_list = [0.8]
-threshold_subgraph_list = [0.9]
-top_m_list = [1]
+threshold_subgraph_list = [0.8]
+top_m_list = [2]
 top_r_list = [2]
 
 for max_nodes, top_m, top_r, threshold_whole, threshold_subgraph in itertools.product(

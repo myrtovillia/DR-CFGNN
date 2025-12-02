@@ -84,19 +84,14 @@ def find_closest_node_result(results, max_nodes):
 def pipeline(config):
 
     
-    predifined_cf_class=2
-    
-    
-    
+    predifined_cf_class=0
     reconstruction_deconstruction = config.run.reconstruction_deconstruction
-    random_baselines = config.run.random_baselines
-    
+    random_baselines = config.run.random_baselines  
     max_nodes = config.explain.max_nodes
     top_m = config.explain.top_m
     top_r = config.explain.top_r
     threshold_whole = config.explain.threshold_whole
-    threshold_subgraph = config.explain.threshold_subgraph
-    
+    threshold_subgraph = config.explain.threshold_subgraph    
     config.models.param = config.models.param[config.datasets.dataset_name]
     config.explainers.param = config.explainers.param[config.datasets.dataset_name]
     config.models.param.add_self_loop = False
@@ -171,10 +166,8 @@ def pipeline(config):
 	   	
     
     if reconstruction_deconstruction:
-    	hp = hyperparams(dataset)
-    	
-    	reconstruction_model = reconstruction_network(in_channels=dataset.num_features, hp=hp, one_hot_dim=dataset.num_classes, one_hot_reconst=one_hot_reconst).to(device)   
-    	 
+    	hp = hyperparams(dataset)    	
+    	reconstruction_model = reconstruction_network(in_channels=dataset.num_features, hp=hp, one_hot_dim=dataset.num_classes, one_hot_reconst=one_hot_reconst).to(device)       	 
     	model_path = os.path.join(os.path.dirname(__file__), f'checkpoints_reconstruction_{one_hot_reconst}', f"reconstruction_model_{config.datasets.dataset_name}.pt")
     	reconstruction_model.load_state_dict(torch.load(model_path, map_location=device))
     	reconstruction_model.eval()
@@ -197,7 +190,10 @@ def pipeline(config):
     
     
     # ---FOLDERS TO SAVE THE RESULTS---
-    base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN", f"counterfactuals_{config.datasets.dataset_name}_max_nodes_{max_nodes}_thr_whole_{threshold_whole}_thr_sub_{threshold_subgraph}_m_{top_m}_r_{top_r}_one_hot_{one_hot_reconst}")
+    if one_hot_reconst:
+    	base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN", f"counterfactuals_{config.datasets.dataset_name}_max_nodes_{max_nodes}_thr_whole_{threshold_whole}_thr_sub_{threshold_subgraph}_m_{top_m}_r_{top_r}_predifined_cf_class_{predifined_cf_class}")
+    else:
+    	base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN", f"counterfactuals_{config.datasets.dataset_name}_max_nodes_{max_nodes}_thr_whole_{threshold_whole}_thr_sub_{threshold_subgraph}_m_{top_m}_r_{top_r}")
 
     if reconstruction_deconstruction:
     	dec_rec_folder = os.path.join(base_counterfactuals_dir, "DR_CFGNN_Dec_Rec") 
@@ -206,6 +202,8 @@ def pipeline(config):
     	os.makedirs(whole_graph, exist_ok=True) 
     	deconstruction_folder = os.path.join(base_counterfactuals_dir, "DR_CFGNN_Dec") 
     	os.makedirs(deconstruction_folder, exist_ok=True)
+    	deconstructed_edges_folder = os.path.join(base_counterfactuals_dir, "DR_CFGNN_deconstructed_edges")
+    	os.makedirs(deconstructed_edges_folder, exist_ok=True)
     	
     if random_baselines:   
     	naive_random_baseline = os.path.join(base_counterfactuals_dir, "naive_random_baseline")
@@ -325,7 +323,7 @@ def pipeline(config):
    
     s2=0
     
-    motif_nodes = set(range(20, 25)) 
+    #motif_nodes = set(range(20, 25)) 
     
     for test_i in test_indices:
     	print(test_i)    
@@ -338,20 +336,17 @@ def pipeline(config):
     	
     	# ----------------------------
     	# REMOVE ONE RANDOM MOTIF EDGE
-    	src, dst = data.edge_index    	
-    	edge_list = list(zip(src.tolist(), dst.tolist()))
-    	motif_edges = [(u, v) for (u, v) in edge_list if u in motif_nodes and v in motif_nodes and u != v]
-    	edge_to_remove = random.choice(motif_edges)
-    	rev = (edge_to_remove[1], edge_to_remove[0])
-    	remove_set = {edge_to_remove, rev}
-    	keep_mask = torch.tensor([(u, v) not in remove_set for (u, v) in edge_list], dtype=torch.bool,device=data.edge_index.device) 
-    	data.edge_index = data.edge_index[:, keep_mask]		
+    	#src, dst = data.edge_index    	
+    	#edge_list = list(zip(src.tolist(), dst.tolist()))
+    	#motif_edges = [(u, v) for (u, v) in edge_list if u in motif_nodes and v in motif_nodes and u != v]
+    	#edge_to_remove = random.choice(motif_edges)
+    	#rev = (edge_to_remove[1], edge_to_remove[0])
+    	#remove_set = {edge_to_remove, rev}
+    	#keep_mask = torch.tensor([(u, v) not in remove_set for (u, v) in edge_list], dtype=torch.bool,device=data.edge_index.device) 
+    	#data.edge_index = data.edge_index[:, keep_mask]		
     	# ----------------------------
     	
-    
 
-    	
-    	
     	pred_graph = model(data).argmax(-1).item()	
     	all_preds.append(pred_graph)
     	all_labels.append(data.y.item())   	
@@ -360,9 +355,6 @@ def pipeline(config):
     	G_whole.remove_edges_from(nx.selfloop_edges(G_whole)) 
     	
     	if data.y.item()==pred_graph :
-    		
-    		if pred_graph==2: # I have this here just to count how many of the incomplete graphs recover the missing edge
-    			s2=s2+1
     			
     		label_mapping=None
 	    	sentence_mapping=None
@@ -378,8 +370,60 @@ def pipeline(config):
 		    	label_mapping = {node_id: atom_labels[node_id] for node_id in G_whole.nodes()}
 		    		    	
 #----------------------------------------------------------------------------------------------------------------
-		# WHOLE GRAPH 	
-    		if reconstruction_deconstruction: 
+
+
+    		if reconstruction_deconstruction:
+    			
+    			G_whole_dec = G_whole.copy()
+    			existing_edges = list(G_whole_dec.edges())
+
+    			wh_edge_index = torch.tensor(existing_edges, dtype=torch.long).T.to(device)
+    			scores = reconstruction_model(data,wh_edge_index,one_hot_reconst,class_one_hot=data.y.item()).sigmoid()
+    			mask = scores > 0.2
+    			filtered_edges = wh_edge_index[:, mask]
+    			filtered_scores = scores[mask]
+
+    			if filtered_edges.numel() > 0:
+    				G_filt = nx.Graph()
+    				G_filt.add_edges_from([tuple(e) for e in filtered_edges.T.cpu().numpy()])
+    				if G_filt.number_of_edges() > 0:
+    					largest_cc = max(nx.connected_components(G_filt), key=len)
+    					G_big = G_filt.subgraph(largest_cc).copy()
+    					filtered_edges = torch.tensor( list(G_big.edges()),dtype=torch.long,device=filtered_edges.device).T
+
+    			
+    			save_name = f"{test_i}_pred_orig_{pred_graph}.png"
+    			save_path = os.path.join(deconstructed_edges_folder, save_name)
+    			pos = nx.spring_layout(G_whole_dec, seed=42)
+    			plt.figure(figsize=(6, 6))
+    			nx.draw_networkx_edges(G_whole_dec, pos, alpha=0.5, edge_color='gray')
+    			nx.draw_networkx_nodes(G_whole_dec, pos, node_size=100, node_color='skyblue')
+    			filtered_edge_list = [tuple(edge) for edge in filtered_edges.T.cpu().numpy()]
+    			nx.draw_networkx_edges(G_whole_dec, pos, edgelist=filtered_edge_list, edge_color='blue', width=2.5)
+    			plt.axis('off')
+    			plt.tight_layout()
+    		
+    			plt.savefig(save_path, bbox_inches='tight')
+    			plt.close()
+    
+				    		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    			
+    			
 	    		G_whole1 = G_whole.copy()
 	    		existing_edges = set( tuple(sorted(edge)) for edge in G_whole1.edges() )
 	    		nodes = list(G_whole1.nodes())
@@ -421,7 +465,6 @@ def pipeline(config):
 				    		pyg_whole.x = data.x
 				    		logits = model(pyg_whole)         
 				    		probs = F.softmax(logits, dim=-1)
-				    		print("Softmax probabilities:", probs)
 				    		pred_whole = model(pyg_whole).argmax(-1).item()
 				    		
 				    		if pred_graph!=pred_whole:
@@ -458,9 +501,85 @@ def pipeline(config):
 				    			img_path = save_path.replace('.pt', '.png')
 				    			plt.savefig(img_path, bbox_inches='tight')
 				    			plt.close()
-		    			
-						
-#--------------------------------------------------------------------------------------------------------------------			    			
+
+
+		    	pt_file = pt_files[test_i] 
+		    	pt_path = os.path.join(explanation_saving_dir, pt_file)	
+		    	data_expl = torch.load(pt_path, map_location='cpu')
+		    	plotted_expl = find_closest_node_result(data_expl, max_nodes=max_nodes)
+		    	coalition_nodes = plotted_expl['coalition']
+		    	graph = plotted_expl['ori_graph']    			 # is_isomorphic(G_whole, graph): YES, same for all the datasets
+		    	graph.remove_edges_from(nx.selfloop_edges(graph))      # I add this after inspecting the results from graph-text datasets
+		    	expl_subgraph = graph.subgraph(coalition_nodes).copy() # nodes may not be sorted, so we do node_mapping.
+
+		    	pyg_data = from_networkx(expl_subgraph)
+		    	pyg_data = pyg_data.to(device)
+		    	pyg_data.edge_index = add_remaining_self_loops(pyg_data.edge_index, num_nodes=pyg_data.num_nodes)[0]
+		    	node_mapping = {i: node for i, node in enumerate(expl_subgraph.nodes())}	
+		    	node_features = torch.stack([data.x[node_mapping[i]] for i in range(pyg_data.num_nodes)])
+		    	pyg_data.x = node_features.to(device)
+		    	pred_subgraph = model(pyg_data).argmax(-1).item()
+		    	
+		    	if pred_graph!=pred_subgraph:
+		    		diff_pred_graph_subgraph += 1
+		    	elif pred_graph==pred_subgraph:
+		    		same_pred_graph_subgraph += 1
+		    		
+		    		for r in range(1, top_r + 1):		  
+			    		for edge_subset in combinations(expl_subgraph.edges, r):
+			    			
+			    			
+			    			temp = G_whole.copy()
+			    			temp.remove_edges_from(edge_subset)
+			    			assert list(temp.nodes()) == list(G_whole.nodes()), f"Node order mismatch!"
+				    		pyg_remove = from_networkx(temp)
+				    		pyg_remove=pyg_remove.to(device)
+				    		pyg_remove.x=data.x
+				    		pyg_remove.edge_index = add_remaining_self_loops(pyg_remove.edge_index, num_nodes=pyg_remove.num_nodes)[0]
+					    	pred_remove = model(pyg_remove).argmax(-1).item()
+					    	
+					    	
+				    		if pred_graph!=pred_remove:
+				    			successful_dec_test_indices.add(test_i)
+				    			
+				    			deleted_edges_str = "_".join([f"{a}-{b}" for a, b in edge_subset])
+				    			save_name = f"{test_i}_del_({deleted_edges_str})_pred_orig_{pred_graph}_pred_cf_{pred_remove}.pt"
+				    			save_path = os.path.join(deconstruction_folder, save_name)
+				    			torch.save(pyg_remove.cpu(), save_path)
+				    						   
+					    		pos = nx.spring_layout(G_whole, seed=42)
+					    		plt.figure(figsize=(6, 6))
+					    		nx.draw_networkx_edges(temp, pos, alpha=0.5, edge_color='gray')
+					    		nx.draw_networkx_nodes(temp, pos, node_size=100, node_color='skyblue')
+					    		deleted_edge_list = [tuple(edge) for edge in edge_subset]
+					    		nx.draw_networkx_edges(temp, pos, edgelist=deleted_edge_list, edge_color='red', width=2.5)
+					    		
+					    		if hasattr(data, 'smiles'):
+					    			labels_to_use = {node: f"{node}: {label_mapping.get(node, '')}" for node in G_whole.nodes}
+				    				nx.draw_networkx_labels(G_whole, pos, labels=labels_to_use)
+					    		elif config.datasets.dataset_name in ["graph_sst2", "graph_sst5", "twitter"]:
+					    			labels_to_use = {node: f"{node}: {sentence_mapping.get(node, '')}" for node in G_whole.nodes}
+				    				nx.draw_networkx_labels(G_whole, pos, labels=labels_to_use)
+					    			sentence_tokens = sentence_tokens_dict.get(str(test_i), [])
+					    			sentence_text = " ".join(sentence_tokens)
+					    			plt.title(f"{sentence_text}")
+					    		else:
+					    			labels_to_use = {node: f"{node}" for node in G_whole.nodes}
+					    			nx.draw_networkx_labels(G_whole, pos, labels=labels_to_use)
+					    			
+					    		plt.axis('off')
+					    		plt.tight_layout()
+					    		img_path = save_path.replace('.pt', '.png')
+					    		plt.savefig(img_path, bbox_inches='tight')
+					    		plt.close()
+
+
+
+				    		if apply_reconstruction(temp, G_whole , pyg_remove, sentence_tokens_dict, data, model, reconstruction_model, test_i, edge_subset, pred_graph, dec_rec_folder, device,  config, label_mapping, sentence_mapping, threshold_subgraph, top_m, predifined_cf_class):
+				    			successful_dec_rec_test_indices.add(test_i)	
+					    					    		
+			   			    		
+#--------------------------------------------------------------------------------------------------------------------				    			
 
 	    	# NAIVE random baseline	    	
 	    	if random_baselines :	
@@ -561,86 +680,7 @@ def pipeline(config):
     	
 
 #--------------------------------------------------------------------------------------------------------------------
-	 
-	    	
-	    	if reconstruction_deconstruction: 
-		    	pt_file = pt_files[test_i] 
-		    	pt_path = os.path.join(explanation_saving_dir, pt_file)	
-		    	data_expl = torch.load(pt_path, map_location='cpu')
-		    	plotted_expl = find_closest_node_result(data_expl, max_nodes=max_nodes)
-		    	coalition_nodes = plotted_expl['coalition']
-		    	graph = plotted_expl['ori_graph']    			 # is_isomorphic(G_whole, graph): YES, same for all the datasets
-		    	graph.remove_edges_from(nx.selfloop_edges(graph))      # I add this after inspecting the results from graph-text datasets
-		    	expl_subgraph = graph.subgraph(coalition_nodes).copy() # nodes may not be sorted, so we do node_mapping.
-
-		    	pyg_data = from_networkx(expl_subgraph)
-		    	pyg_data = pyg_data.to(device)
-		    	pyg_data.edge_index = add_remaining_self_loops(pyg_data.edge_index, num_nodes=pyg_data.num_nodes)[0]
-		    	node_mapping = {i: node for i, node in enumerate(expl_subgraph.nodes())}	
-		    	node_features = torch.stack([data.x[node_mapping[i]] for i in range(pyg_data.num_nodes)])
-		    	pyg_data.x = node_features.to(device)
-		    	pred_subgraph = model(pyg_data).argmax(-1).item()
-		    	
-		    	if pred_graph!=pred_subgraph:
-		    		diff_pred_graph_subgraph += 1
-		    	elif pred_graph==pred_subgraph:
-		    		same_pred_graph_subgraph += 1
-		    		
-		    		for r in range(1, top_r + 1):		  
-			    		for edge_subset in combinations(expl_subgraph.edges, r):
-			    			
-			    			
-			    			temp = G_whole.copy()
-			    			temp.remove_edges_from(edge_subset)
-			    			assert list(temp.nodes()) == list(G_whole.nodes()), f"Node order mismatch!"
-				    		pyg_remove = from_networkx(temp)
-				    		pyg_remove=pyg_remove.to(device)
-				    		pyg_remove.x=data.x
-				    		pyg_remove.edge_index = add_remaining_self_loops(pyg_remove.edge_index, num_nodes=pyg_remove.num_nodes)[0]
-					    	pred_remove = model(pyg_remove).argmax(-1).item()
-					    	
-					    	
-				    		if pred_graph!=pred_remove:
-				    			successful_dec_test_indices.add(test_i)
-				    			
-				    			deleted_edges_str = "_".join([f"{a}-{b}" for a, b in edge_subset])
-				    			save_name = f"{test_i}_del_({deleted_edges_str})_pred_orig_{pred_graph}_pred_cf_{pred_remove}.pt"
-				    			save_path = os.path.join(deconstruction_folder, save_name)
-				    			torch.save(pyg_remove.cpu(), save_path)
-				    						   
-					    		pos = nx.spring_layout(G_whole, seed=42)
-					    		plt.figure(figsize=(6, 6))
-					    		nx.draw_networkx_edges(temp, pos, alpha=0.5, edge_color='gray')
-					    		nx.draw_networkx_nodes(temp, pos, node_size=100, node_color='skyblue')
-					    		deleted_edge_list = [tuple(edge) for edge in edge_subset]
-					    		nx.draw_networkx_edges(temp, pos, edgelist=deleted_edge_list, edge_color='red', width=2.5)
-					    		
-					    		if hasattr(data, 'smiles'):
-					    			labels_to_use = {node: f"{node}: {label_mapping.get(node, '')}" for node in G_whole.nodes}
-				    				nx.draw_networkx_labels(G_whole, pos, labels=labels_to_use)
-					    		elif config.datasets.dataset_name in ["graph_sst2", "graph_sst5", "twitter"]:
-					    			labels_to_use = {node: f"{node}: {sentence_mapping.get(node, '')}" for node in G_whole.nodes}
-				    				nx.draw_networkx_labels(G_whole, pos, labels=labels_to_use)
-					    			sentence_tokens = sentence_tokens_dict.get(str(test_i), [])
-					    			sentence_text = " ".join(sentence_tokens)
-					    			plt.title(f"{sentence_text}")
-					    		else:
-					    			labels_to_use = {node: f"{node}" for node in G_whole.nodes}
-					    			nx.draw_networkx_labels(G_whole, pos, labels=labels_to_use)
-					    			
-					    		plt.axis('off')
-					    		plt.tight_layout()
-					    		img_path = save_path.replace('.pt', '.png')
-					    		plt.savefig(img_path, bbox_inches='tight')
-					    		plt.close()
-
-#--------------------------------------------------------------------------------------------------------------------			    
-
-				    		if apply_reconstruction(temp, G_whole , pyg_remove, sentence_tokens_dict, data, model, reconstruction_model, test_i, edge_subset, pred_graph, dec_rec_folder, device,  config, label_mapping, sentence_mapping, threshold_subgraph, top_m, predifined_cf_class):
-				    			successful_dec_rec_test_indices.add(test_i)	
-					    					    		
-#--------------------------------------------------------------------------------------------------------------------			   			    		
- 		    				
+	    				
     save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"robustness_helper_{config.datasets.dataset_name}.csv")
     with open(save_path, "a") as f:
     	f.writelines(lines) 
@@ -658,11 +698,8 @@ def pipeline(config):
     print(f"{len(counterfactuals_whole_graph)}/{same_pred_graph_subgraph + diff_pred_graph_subgraph }")
     print(" ")
     
-    print("Number of counterfactuals generated by the naive random baseline")
-    print(f"{len(counterfactuals_naive)}/{same_pred_graph_subgraph + diff_pred_graph_subgraph }")
-    print(" ")
-    
-    print("Number of counterfactuals generated by removing edges from the explanation")
+
+    print("Number of counterfactuals generated by removing edges from the factual explanation")
     print(f"{len(successful_dec_test_indices)} /{same_pred_graph_subgraph }")
     print(" ")
     
@@ -670,8 +707,11 @@ def pipeline(config):
     print(f"{len(successful_dec_rec_test_indices)}/{same_pred_graph_subgraph }")
     print(" ")
     
-         
-    print(s2)
+    print("Number of counterfactuals generated by the naive random baseline")
+    print(f"{len(counterfactuals_naive)}/{same_pred_graph_subgraph + diff_pred_graph_subgraph }")
+    print(" ")
+    
+
     
 
 if __name__ == '__main__':
