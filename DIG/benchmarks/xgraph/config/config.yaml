@@ -1,4 +1,3 @@
-one_hot_reconst: False
 defaults:
   - models: gcn
   - datasets: bbbp
@@ -6,13 +5,15 @@ defaults:
 random_seed: 0
 device_id: 0
 record_filename: none
-explain:
-  max_nodes: 8
-  top_m: 1
-  top_r: 1
-  threshold_whole: 0.8
-  threshold_subgraph: 0.8
-run:
-  reconstruction_deconstruction: true
-  random_baselines: false 
-  
+dr_cfgnn:
+  max_nodes: 6
+  top_m: 2
+  top_r: 2
+  threshold_whole: 0.9
+  threshold_subgraph: 0.9
+  predifined_cf_class: 1 
+  run_dr_cfgnn: true
+  run_random_baseline: false  
+one_hot_reconst: false
+denoising_mode: none   
+

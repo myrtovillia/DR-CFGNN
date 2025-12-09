@@ -14,7 +14,12 @@ from dig.xgraph.method.subgraphx import PlotUtils
 from dig.xgraph.evaluation import XCollector
 from dig.xgraph.method.subgraphx import find_closest_node_result
 from dig.xgraph.utils.compatibility import compatible_state_dict
-IS_FRESH = False
+
+from torch_geometric.utils import to_networkx, from_networkx
+from benchmarks.xgraph.reconstruction_process import reconstruction_network
+from benchmarks.xgraph.reconstruction_model_hyperparameters import hyperparams
+import networkx as nx
+IS_FRESH = True
 
 
 @hydra.main(config_path="config", config_name="config")
@@ -96,10 +101,78 @@ def pipeline(config):
         x_collector = XCollector()
         all_preds=[]
         all_labels=[]
+        
+        if config.denoising_mode == "none":
+        	do_denoising = False
+        	suffix = ""
+        elif config.denoising_mode == "without_one_hot":
+        	do_denoising = True
+        	config.one_hot_reconst = False
+        	suffix = "_DENOISED_NOONEHOT"
+        elif config.denoising_mode == "with_one_hot":
+        	do_denoising = True
+        	config.one_hot_reconst = True
+        	suffix = "_DENOISED_ONEHOT"
+        else:
+        	raise ValueError("Invalid denoising_mode option")
+       	
+        if do_denoising:
+        	hp = hyperparams(dataset)
+        	reconstruction_model = reconstruction_network(in_channels=dataset.num_features, hp=hp, one_hot_dim=dataset.num_classes, one_hot_reconst=config.one_hot_reconst).to(device)
+        	model_path = os.path.join(os.path.dirname(__file__), f'checkpoints_reconstruction_{config.one_hot_reconst}', f"reconstruction_model_{config.datasets.dataset_name}.pt")
+        	reconstruction_model.load_state_dict(torch.load(model_path, map_location=device))
+        	reconstruction_model.eval()
+	    	
         for i, data in enumerate(dataset[test_indices]):
             index += 1
             data.to(device)
             data.edge_index = add_remaining_self_loops(data.edge_index, num_nodes=data.num_nodes)[0]
+            
+            
+            
+            
+            if do_denoising:
+            	G_whole = to_networkx(data, to_undirected=True)
+            	G_whole.remove_edges_from(nx.selfloop_edges(G_whole)) 
+            
+            	G_factual = G_whole.copy()
+            	existing_edges = list(G_factual.edges())
+            	wh_edge_index = torch.tensor(existing_edges, dtype=torch.long).T.to(device)
+            	scores = reconstruction_model(data, wh_edge_index, config.one_hot_reconst, class_one_hot=data.y.item() ).sigmoid()
+            	sorted_scores, sorted_idx = torch.sort(scores, descending=False)
+            	sorted_indices = sorted_idx.tolist()
+            	
+            	j = 0
+            	old_prob = model(data).softmax(dim=-1)[0, data.y.item()].item()
+            	removed_edges = []
+            	while j < len(sorted_indices):
+            		edge_id = sorted_indices[j]
+            		u = wh_edge_index[0, edge_id].item()
+            		v = wh_edge_index[1, edge_id].item()
+            		G_factual.remove_edge(u, v)
+            		pyg_fact = from_networkx(G_factual).to(device)
+            		pyg_fact.edge_index = add_remaining_self_loops(pyg_fact.edge_index, num_nodes=pyg_fact.num_nodes)[0]
+            		pyg_fact.x = data.x
+            		new_pred = model(pyg_fact).argmax(-1).item()
+            		new_prob = model(pyg_fact).softmax(dim=-1)[0, data.y.item()].item()
+            		diff_prob =  old_prob - new_prob
+            		
+            		if diff_prob > 0.02:
+            			print(f"Removed edge ({u}, {v}) -> correct class prob dropped from {old_prob:.4f} to {new_prob:.4f}")
+            			G_factual.add_edge(u, v)
+            			break
+            		removed_edges.append((u, v))
+            		old_prob = new_prob
+            		j += 1
+            	data_for_expl = pyg_fact
+            else:
+            	data_for_expl = data
+            	
+            
+            
+            
+            
+            
             saved_MCTSInfo_list = None
             prediction = model(data).argmax(-1).item()
             
@@ -112,12 +185,13 @@ def pipeline(config):
                 print(f"load example {test_indices[i]}.")
 
             explain_result, related_preds = \
-                subgraphx.explain(data.x, data.edge_index,
+                subgraphx.explain(data_for_expl.x, data_for_expl.edge_index,
                                   max_nodes=config.explainers.max_ex_size,
                                   label=prediction,
                                   saved_MCTSInfo_list=saved_MCTSInfo_list)
 
-            torch.save(explain_result, os.path.join(explanation_saving_dir, f'example_{test_indices[i]}.pt'))
+
+            torch.save(explain_result, os.path.join(explanation_saving_dir, f'example_{test_indices[i]}{suffix}.pt'))
 
             title_sentence = f'fide: {(related_preds["origin"] - related_preds["maskout"]):.3f}, ' \
                              f'fide_inv: {(related_preds["origin"] - related_preds["masked"]):.3f}, ' \
@@ -152,7 +226,7 @@ def pipeline(config):
                                     plot_utils=plot_utils,
                                     title_sentence=title_sentence,
                                     vis_name=os.path.join(explanation_saving_dir,
-                                                          f'example_{test_indices[i]}_'
+                                                          f'example_{test_indices[i]}{suffix}'
                                                           f'prediction_{prediction}_'
                                                           f'label_{data.y.item()}_'
                                                           f'pred_{predict_true}.png'),

@@ -51,7 +51,7 @@ This will create the folder checkpoints_reconstruction_True.
 
 Run DR-CFGNN framework by opening a terminal in the `DIG/benchmarks/xgraph` folder and run: 
 
-`python experiments.py datasets=ba_2motifs one_hot_reconst=True`. 
+`python DR_CFGNN.py datasets=ba_2motifs one_hot_reconst=True`. 
 
 This will generate a folder named `DR_CFGNN`, which contains subfolders titled with the dataset and the parameters. 
 

@@ -1,10 +1,18 @@
 {
   "subgraphx": {
     "8": {
-      "fidelity": 0.7435923218727112,
-      "fidelity_inv": 0.08419371396303177,
-      "sparsity": 0.7114610075950623,
-      "accuracy": 0.7510077212956329,
+      "fidelity": 0.2914842367172241,
+      "fidelity_inv": -0.18267861008644104,
+      "sparsity": 0.6270319223403931,
+      "accuracy": 0.8789970286746598,
+      "stability": NaN,
+      "model_accuracy": 0.93
+    },
+    "10": {
+      "fidelity": 0.7564014196395874,
+      "fidelity_inv": 0.06330280750989914,
+      "sparsity": 0.6799631714820862,
+      "accuracy": 0.7443641149979111,
       "stability": NaN,
       "model_accuracy": 0.93
     }
