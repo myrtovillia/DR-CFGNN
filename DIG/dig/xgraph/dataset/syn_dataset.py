@@ -121,19 +121,17 @@ def create_ba_3motifs(data_list, motif_nodes=[20, 21, 22, 23, 24], seed=42):
     idx0 = random.sample(range(len(class_0)), n0)
     idx1 = random.sample(range(len(class_1)), n1)
 
-
     def add_full_clique(data, motif_nodes):
         src, dst = data.edge_index
-        edge_set = set(zip(src.tolist(), dst.tolist())) # both directions
-        
+        edge_set = set(zip(src.tolist(), dst.tolist())) # both directions        
         for u in motif_nodes:
             for v in motif_nodes:
                 if u != v:
                     edge_set.add((u, v))
-
-        new_src, new_dst = zip(*edge_set)      
+        edge_list = sorted(edge_set)
+        new_src, new_dst = zip(*edge_list)
         data.edge_index = torch.tensor([new_src, new_dst], dtype=torch.long)
-        data.y = torch.tensor([2])
+        data.y = torch.tensor([2])  
         return data
 
     for i in idx0:
@@ -147,6 +145,66 @@ def create_ba_3motifs(data_list, motif_nodes=[20, 21, 22, 23, 24], seed=42):
 
 
 
+
+
+def create_ba_4motifs(data_list, motif_nodes=[20, 21, 22, 23, 24], seed=42):
+    import random
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+    num_self_loops = 0
+    for data in data_list:
+        src, dst = data.edge_index
+        if ((src == 20) & (dst == 20)).any():
+            num_self_loops += 1
+        mask = ~((src == 20) & (dst == 20))
+        data.edge_index = data.edge_index[:, mask]
+
+    class_0 = [g for g in data_list if g.y.item() == 0]
+    class_1 = [g for g in data_list if g.y.item() == 1]
+
+    k0 = len(class_0) // 2       
+    k1 = len(class_1) // 2       
+    k2 = len(class_1) - k1    
+    k3 = len(class_0) - k0       
+
+    idx0 = set(random.sample(range(len(class_0)), k0))
+    idx1 = set(random.sample(range(len(class_1)), k1))
+    idx3 = [i for i in range(len(class_0)) if i not in idx0]
+    idx2 = [i for i in range(len(class_1)) if i not in idx1]
+
+    def add_single_edge_set(data, u=20, v=22):
+        src, dst = data.edge_index
+        edge_set = set(zip(src.tolist(), dst.tolist()))
+        edge_set.add((u, v))
+        edge_set.add((v, u))
+        edge_list = sorted(edge_set)
+        new_src, new_dst = zip(*edge_list)
+        data.edge_index = torch.tensor([new_src, new_dst], dtype=torch.long)
+        data.y = torch.tensor([2])
+        return data
+
+    def add_full_clique_set(data, motif_nodes):
+        src, dst = data.edge_index
+        edge_set = set(zip(src.tolist(), dst.tolist()))
+        for u in motif_nodes:
+            for v in motif_nodes:
+                if u != v:
+                    edge_set.add((u, v))
+               
+        edge_list = sorted(edge_set)
+        new_src, new_dst = zip(*edge_list)
+        data.edge_index = torch.tensor([new_src, new_dst], dtype=torch.long)
+        data.y = torch.tensor([3])  
+        return data
+         
+    for i in idx3:
+        class_0[i] = add_full_clique_set(class_0[i], motif_nodes)
+
+    for i in idx2:
+        class_1[i] = add_single_edge_set(class_1[i], 20, 22)
+ 
+    return class_0 + class_1
 
 
 
@@ -179,10 +237,9 @@ class SynGraphDataset(InMemoryDataset):
         'tree_grid': ['Tree_Grid', 'Tree_Grid.pkl', 'Tree_Grid'],
         'tree_cycle': ['Tree_Cycle', 'Tree_Cycles.pkl', 'Tree_Cycles'],
         'ba_2motifs': ['BA_2Motifs', 'BA_2Motifs.pkl', 'BA_2Motifs'],
-        'ba_2motifs_3class': ['BA_2Motifs_3class', 'BA_2Motifs.pkl', 'BA_2Motifs'], 
-        
-        'ba_3motifs': ['BA_3Motifs', 'BA_2Motifs.pkl', 'BA_2Motifs'] #!!
-
+        'ba_2motifs_3class': ['BA_2Motifs_3class', 'BA_2Motifs.pkl', 'BA_2Motifs'],         
+        'ba_3motifs': ['BA_3Motifs', 'BA_2Motifs.pkl', 'BA_2Motifs'],    
+        'ba_4motifs': ['BA_4Motifs', 'BA_2Motifs.pkl', 'BA_2Motifs']
     }
 
     def __init__(self, root, name, transform=None, pre_transform=None):
@@ -211,9 +268,9 @@ class SynGraphDataset(InMemoryDataset):
         path = download_url(url, self.raw_dir)
 
     def process(self):
-        if self.name.lower() in ['ba_2motifs', 'ba_2motifs_3class', 'ba_3motifs']:
+        if self.name.lower() in ['ba_2motifs', 'ba_2motifs_3class', 'ba_3motifs', 'ba_4motifs']:
         
-            print("CHECK FROM SYN_DATASET.PY")
+            print("CREATED FROM SYN_DATASET.PY")
             data_list = read_ba2motif_data(self.raw_dir, self.names[self.name][2])
             
             if self.name.lower() == 'ba_2motifs_3class':
@@ -221,6 +278,9 @@ class SynGraphDataset(InMemoryDataset):
             	
             if self.name.lower() == 'ba_3motifs':
             	data_list = create_ba_3motifs(data_list)
+            	
+            if self.name.lower() == 'ba_4motifs':
+            	data_list = create_ba_4motifs(data_list)
 
 
             if self.pre_filter is not None:
@@ -244,7 +304,7 @@ class SynGraphDataset(InMemoryDataset):
         return '{}({})'.format(self.names[self.name][0], len(self))
 
     def gen_motif_edge_mask(self, data, node_idx=0, num_hops=3):
-        if self.name in ['ba_2motifs', 'ba_2motifs_3class', 'ba_3motifs']:
+        if self.name in ['ba_2motifs', 'ba_2motifs_3class', 'ba_3motifs', 'ba_4motifs']:
             return torch.logical_and(data.edge_index[0] >= 20, data.edge_index[1] >= 20)
         elif self.name in ['ba_shapes', 'ba_community', 'tree_grid', 'tree_cycle']:
             """ selection in a loop way to fetch all the nodes in the connected motifs """
@@ -429,4 +489,4 @@ class BA_LRP(InMemoryDataset):
 
 if __name__ == '__main__':
     # lrp_dataset = BA_LRP(root='.', num_per_class=10000)
-    syn_dataset = SynGraphDataset(root='.', name='BA_3motifs')
+    syn_dataset = SynGraphDataset(root='.', name='BA_4motifs')

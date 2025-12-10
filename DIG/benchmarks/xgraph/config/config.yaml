@@ -12,7 +12,7 @@ dr_cfgnn:
   threshold_whole: 0.9
   threshold_subgraph: 0.9
   predifined_cf_class: 1 
-  run_dr_cfgnn: true
+  run_dr_cfgnn: false
   run_random_baseline: false  
 one_hot_reconst: false
 denoising_mode: none   

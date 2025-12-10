@@ -105,7 +105,7 @@ def pipeline(config):
   
     dataset.data.x = dataset.data.x.float()
     dataset.data.y = dataset.data.y.squeeze().long() # for all datasets edge index contains both i.e. (1-0) and (0-1)
-      
+
     if config.models.param.graph_classification:
         dataloader_params = {'batch_size': config.models.param.batch_size,
                              'random_split_flag': config.datasets.random_split_flag,
@@ -166,8 +166,8 @@ def pipeline(config):
     	pt_files = {int(f.split('_')[1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt') and "_DENOISED_ONEHOT" in f}
 
 
-    print(pt_files)
-    '''
+    #print(pt_files)
+   
     lines = [] 
     all_preds = []
     all_labels = []
@@ -336,19 +336,20 @@ def pipeline(config):
     					
    
     for test_i in test_indices:
-    	print(test_i)    
+    	#print(test_i)    
     	data = dataset[test_i]
     	data = data.to(device)  #ba_2motifs, ba_2motifs_3class, sst2, twitter, sst5 contain (0-1) and (1-0) etc
-    	data.edge_index = add_remaining_self_loops(data.edge_index, num_nodes=data.num_nodes)[0]
-    	
 
+    	data.edge_index = add_remaining_self_loops(data.edge_index, num_nodes=data.num_nodes)[0]
+
+    
     	pred_graph = model(data).argmax(-1).item()	
     	all_preds.append(pred_graph)
     	all_labels.append(data.y.item())   	
     	lines.append(f"{test_i},{data.y.item()},{pred_graph}\n")	
     	G_whole = to_networkx(data, to_undirected=True)
     	G_whole.remove_edges_from(nx.selfloop_edges(G_whole)) 
-    	
+    '''	
     	if data.y.item()==pred_graph :
     			
     		label_mapping=None
@@ -522,15 +523,17 @@ def pipeline(config):
 
 #--------------------------------------------------------------------------------------------------------------------
 	    				
+    '''
     save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"robustness_helper_{config.datasets.dataset_name}.csv")
     with open(save_path, "a") as f:
     	f.writelines(lines) 
+    
 
 
     model_accuracy = accuracy_score(all_labels, all_preds)
     print(f'Model Accuracy: {model_accuracy:.14f}')
     print("")
-    
+    '''
     print("Same predictions of subgraph explanation and original graph")
     print(f"{same_pred_graph_subgraph}/{same_pred_graph_subgraph + diff_pred_graph_subgraph }")
     print("")
