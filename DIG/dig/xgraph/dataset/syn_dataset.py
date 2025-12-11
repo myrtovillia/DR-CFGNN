@@ -173,16 +173,29 @@ def create_ba_4motifs(data_list, motif_nodes=[20, 21, 22, 23, 24], seed=42):
     idx3 = [i for i in range(len(class_0)) if i not in idx0]
     idx2 = [i for i in range(len(class_1)) if i not in idx1]
 
-    def add_single_edge_set(data, u=20, v=22):
-        src, dst = data.edge_index
-        edge_set = set(zip(src.tolist(), dst.tolist()))
-        edge_set.add((u, v))
-        edge_set.add((v, u))
-        edge_list = sorted(edge_set)
-        new_src, new_dst = zip(*edge_list)
-        data.edge_index = torch.tensor([new_src, new_dst], dtype=torch.long)
-        data.y = torch.tensor([2])
-        return data
+    def add_single_edge_set(data, motif_nodes=[20, 21, 22, 23, 24]):
+    	src, dst = data.edge_index
+    	edge_set = set(zip(src.tolist(), dst.tolist()))
+    	
+    	motif_set = set(motif_nodes)
+    	edge_set = {(u, v) for (u, v) in edge_set if not (u in motif_set and v in motif_set) }
+    	star_edges = [  (20, 21), (21, 20), 
+    		        (20, 22), (22, 20), 
+    		        (20, 23), (23, 20), 
+    		        (21, 23), (23, 21),
+    		        (23, 22), (22, 23),
+    		        (21, 22), (22, 21),
+    		        (20, 24), (24, 20)
+    		         ]
+    		        
+    	for e in star_edges:
+    		edge_set.add(e)
+    	edge_list = sorted(edge_set)
+    	new_src, new_dst = zip(*edge_list)
+    	data.edge_index = torch.tensor([new_src, new_dst], dtype=torch.long)
+    	data.y = torch.tensor([2])
+    	return data
+
 
     def add_full_clique_set(data, motif_nodes):
         src, dst = data.edge_index
@@ -202,7 +215,7 @@ def create_ba_4motifs(data_list, motif_nodes=[20, 21, 22, 23, 24], seed=42):
         class_0[i] = add_full_clique_set(class_0[i], motif_nodes)
 
     for i in idx2:
-        class_1[i] = add_single_edge_set(class_1[i], 20, 22)
+        class_1[i] = add_single_edge_set(class_1[i], motif_nodes)
  
     return class_0 + class_1
 
