@@ -80,6 +80,8 @@ def pipeline(config):
     top_r                             = config.dr_cfgnn.top_r
     threshold_add                     = config.dr_cfgnn.threshold_add
     predifined_cf_class               = config.dr_cfgnn.predifined_cf_class 
+    a_del                             = config.dr_cfgnn.a_del
+    a_add                             = config.dr_cfgnn.a_add
     one_hot_reconst                   = config.one_hot_reconst
     # In the config, we set: run_dr_cfgnn = true, run_random_baseline = false, denoising_mode = none. If the user wants to change these behaviors, they must also update the corresponding values in the config file.
 
@@ -179,155 +181,37 @@ def pipeline(config):
     if config.dr_cfgnn.run_random_baseline:   
     	naive_random_baseline = os.path.join(base_counterfactuals_dir, "naive_random_baseline")
     	os.makedirs(naive_random_baseline, exist_ok=True)
-    
+    	
+    	
+##########################################################################################################################################################################    
     
     # time variables
-    dec_rec_time_all = 0
     
-    '''
-    def apply_reconstruction( G_full, sentence_tokens_dict, data, model, reconstruction_model, test_i, edge_subset, pred_graph, folder, device,  config, label_mapping, sentence_mapping, threshold_add, top_m, predifined_cf_class):
-    	
-    	
-    	G_full_dr = G_full.copy()    	
-    	if edge_subset:
-    		for edge in edge_subset:
-    			u, v = edge
-    			if G_full_dr.has_edge(u, v):
-    				G_full_dr.remove_edge(u, v)
-    	temp_data = from_networkx(G_full_dr)
-    	temp_data=temp_data.to(device)
-    	temp_data.x=data.x
-    	temp_data.edge_index = add_remaining_self_loops(temp_data.edge_index, num_nodes=temp_data.num_nodes)[0]
-    	
-    	nodes = list(G_full_dr.nodes())
-    	non_existing_edges = [edge for edge in combinations(nodes, 2) if tuple(sorted(edge)) not in {tuple(sorted(e)) for e in G_full_dr.edges()}]
-    	
-    	
-    	if len(non_existing_edges) > 0  : # if equal to 0 that means the temp1 is complete.
-    		edge_index_lp = torch.tensor(non_existing_edges, dtype=torch.long).T 
-    		scores = reconstruction_model(temp_data, edge_index_lp,  one_hot_reconst, class_one_hot=predifined_cf_class).float().sigmoid()
-    		
-    		
-    		mask = scores > threshold_add
-    		mask = mask.to(edge_index_lp.device)
-    		filtered_edges = edge_index_lp[:, mask]
-    		filtered_edges = [tuple(filtered_edges[:,i].tolist()) for i in range(filtered_edges.size(1))]
-    		print(filtered_edges)
+    total_dec_time = 0.0
+    total_rec_time = 0.0
+    sum_first_time =0.0
 
-    		if (len(filtered_edges)>0):
-    			combs_by_size = {m: [list(c) for c in combinations(filtered_edges, m)] for m in range(1, top_m + 1)}
-    			print(combs_by_size)
-    			while any(len(lst) > 0 for lst in combs_by_size.values()):
-    				a_add = 0.8
-    				probs = np.array([np.exp(-a_add * (k - 1)**4) for k in range(0, len(filtered_edges) + 1)], dtype=float)
-    				probs = probs / probs.sum()
-    				n = np.random.choice(np.arange(0, len(filtered_edges) + 1), p=probs)
-    				print("n chosen:", n)
-    				added_edge_subset = None  # default
-    				if n!=0:
-    					if n in combs_by_size and len(combs_by_size[n]) > 0:
-    						added_edge_subset = combs_by_size[n].pop()
-    						print("Selected subset:", added_edge_subset)
-
-    			
-
-    			for u, v in added_edge_subset:
-    				G_full_dr.add_edge(u, v)
-
-    			assert list(G_full_dr.nodes()) == list(range(data.num_nodes)), f"Node order mismatch!"
-	    		pyg_lp = from_networkx(G_full_dr)
-	    		pyg_lp = pyg_lp.to(device)
-	    		pyg_lp.edge_index = add_remaining_self_loops(pyg_lp.edge_index, num_nodes=pyg_lp.num_nodes)[0]
-	    		pyg_lp.x = data.x
-	    		pred_lp= model(pyg_lp).argmax(-1).item()
-	    		print(pred_lp)
-	    		
-    			if pred_graph!=pred_lp:
-    			
-    				found_cf = True
-    				print(edge_subset)
-    			
-	    			deleted_edges_str = "_".join([f"{a}-{b}" for a, b in edge_subset]) if edge_subset else ""
-	    			added_edges_str   = "_".join([f"{a}-{b}" for a, b in added_edge_subset]) if added_edge_subset else ""
-	    			save_name = f"{test_i}_added_({added_edges_str})_del_({deleted_edges_str})_pred_orig_{pred_graph}_pred_cf_{pred_lp}.pt"
-
-	    			save_path = os.path.join(folder, save_name)
-	    			torch.save(pyg_lp.cpu(), save_path)
-	    			
-    				selected_edges_list = [tuple(edge) for edge in added_edge_subset]
-    				selected_edges_set = set(selected_edges_list)
-    				edges_to_draw = list(G_full.edges)
-    				for e1, e2 in selected_edges_list:
-    					if not G_full.has_edge(e1, e2):
-    						edges_to_draw.append((e1, e2))
-    				
-    				cf_nx = nx.Graph()
-    				cf_nx.add_nodes_from(G_full.nodes)
-    				cf_nx.add_edges_from(edges_to_draw)
-    				
-    				green_edges = []
-    				red_edges = []
-    				blue_edges = []
-    				black_edges=[]
-    				edge_subset = edge_subset or []
-    				selected_edges_set = selected_edges_set or []
-    				for edge in cf_nx.edges():
-    					if (edge in edge_subset or (edge[1], edge[0]) in edge_subset):
-    						if edge in selected_edges_set or (edge[1], edge[0]) in selected_edges_set:
-    							black_edges.append(edge)
-    						else:
-    							red_edges.append(edge)
-    					elif edge in selected_edges_set or (edge[1], edge[0]) in selected_edges_set:
-    						green_edges.append(edge)
-    					else:
-    						blue_edges.append(edge)
-
-    						
-    				pos = nx.spring_layout(G_whole, seed=42)
-    				plt.figure(figsize=(6, 6))
-    				nx.draw_networkx_nodes(cf_nx, pos, node_color='lightgray', node_size=500)
-    				nx.draw_networkx_edges(cf_nx, pos, edgelist=blue_edges, edge_color='blue', width=2)
-    				nx.draw_networkx_edges(cf_nx, pos, edgelist=red_edges, edge_color='red', width=2)
-    				nx.draw_networkx_edges(cf_nx, pos, edgelist=green_edges, edge_color='green', width=2)
-    				nx.draw_networkx_edges(cf_nx, pos, edgelist=black_edges, edge_color='black', width=2)
-
-    				if hasattr(data, 'smiles'): 
-    					labels_to_use = {node: f"{node}: {label_mapping.get(node, '')}" for node in cf_nx.nodes}
-    					nx.draw_networkx_labels(cf_nx, pos, labels=labels_to_use)
-    				elif config.datasets.dataset_name in ["graph_sst2", "graph_sst5", "twitter"]:
-    					labels_to_use = {node: f"{node}: {sentence_mapping.get(node, '')}" for node in cf_nx.nodes}
-    					nx.draw_networkx_labels(cf_nx, pos, labels=labels_to_use)
-    					sentence_tokens = sentence_tokens_dict.get(str(test_i), [])
-    					sentence_text = " ".join(sentence_tokens)
-    					plt.title(f"{sentence_text}")
-    				else: 
-    					labels_to_use = {node: f"{node}" for node in cf_nx.nodes}
-    					nx.draw_networkx_labels(cf_nx, pos, labels=labels_to_use)
-    				plt.axis('off')
-    				plt.tight_layout()
-    				img_path = save_path.replace('.pt', '.png')
-    				plt.savefig(img_path, bbox_inches='tight')
-    				plt.close()
-    				return found_cf
-    			
-				
-   
-    '''
-    
     for test_i in test_indices:
-    	print(test_i)    
-    	data = dataset[test_i]
+    	print(test_i) 
+    	
+    	
+    	dec_time = 0.0
+    	rec_time= 0.0
+
+    	   
+    	data = dataset[test_i]    	
     	data = data.to(device)  #ba_2motifs, ba_2motifs_3class, sst2, twitter, sst5 contain (0-1) and (1-0) etc
-    	data.edge_index = add_remaining_self_loops(data.edge_index, num_nodes=data.num_nodes)[0]    
+    	data.edge_index = add_remaining_self_loops(data.edge_index, num_nodes=data.num_nodes)[0]   
     	pred_graph = model(data).argmax(-1).item()	
     	all_preds.append(pred_graph)
-    	all_labels.append(data.y.item())   	
-    	lines.append(f"{test_i},{data.y.item()},{pred_graph}\n")	
+    	all_labels.append(data.y.item())    	  	
     	G_whole = to_networkx(data, to_undirected=True)
     	G_whole.remove_edges_from(nx.selfloop_edges(G_whole)) 
-   	
+
     	if data.y.item()==pred_graph :
-    			
+    	
+    		time_flag=True
+    		# plots	
     		label_mapping=None
 	    	sentence_mapping=None
 	    	if config.datasets.dataset_name in ["graph_sst2", "graph_sst5", "twitter"]:
@@ -341,19 +225,18 @@ def pipeline(config):
 		    	atom_labels = [atom.GetSymbol() for atom in mol.GetAtoms()] 
 		    	label_mapping = {node_id: atom_labels[node_id] for node_id in G_whole.nodes()}
 		    		    	
-#----------------------------------------------------------------------------------------------------------------
-
+		    		    	
     		if config.dr_cfgnn.run_dr_cfgnn:
 
 		    	pt_file = pt_files[test_i] 
 		    	pt_path = os.path.join(explanation_saving_dir, pt_file)	
 		    	data_expl = torch.load(pt_path, map_location='cpu')
-		    	plotted_expl = find_closest_node_result(data_expl, max_nodes=max_nodes)
+		    	plotted_expl = find_closest_node_result(data_expl, max_nodes=max_nodes) # data.edge_index = plotted_expl["data"].edge_index
 		    	coalition_nodes = plotted_expl['coalition']
 		    	graph = plotted_expl['ori_graph']    			 # is_isomorphic(G_whole, graph): YES, same for all the datasets
 		    	graph.remove_edges_from(nx.selfloop_edges(graph))      # I add this after inspecting the results from graph-text datasets
 		    	expl_subgraph = graph.subgraph(coalition_nodes).copy() # nodes may not be sorted, so we do node_mapping.
-
+	    			    	
 		    	pyg_data = from_networkx(expl_subgraph)
 		    	pyg_data = pyg_data.to(device)
 		    	pyg_data.edge_index = add_remaining_self_loops(pyg_data.edge_index, num_nodes=pyg_data.num_nodes)[0]
@@ -366,37 +249,141 @@ def pipeline(config):
 		    		diff_pred_graph_subgraph += 1
 		    	elif pred_graph==pred_subgraph:
 		    		same_pred_graph_subgraph += 1
-		    		
-		    		dec_rec_time_start=time.time()
-		    		
+    		
 		    		expl_edges = list(expl_subgraph.edges())
-		    		combs_by_size = {r: [list(c) for c in combinations(expl_edges, r)] for r in range(1, top_r + 1)}
-		    		print(combs_by_size)
-		    		s=0
-		    		while any(len(lst) > 0 for lst in combs_by_size.values()): #Keep looping as long as at least ONE list inside combs_by_size is non-empty.
-		    			a_del = 0.8
-		    			probs = np.array([np.exp(-a_del * (k - 1)**4) for k in range(0, 10 + 1)], dtype=float)
-		    			print(probs)
-		    			probs = probs / probs.sum()
-		    			n = np.random.choice(np.arange(0, 10+ 1), p=probs)
-		    			print("n chosen:", n)
-		    			edge_delete = None 	
-		    			if n!=0:
-		    				if n in combs_by_size and len(combs_by_size[n]) > 0:
-		    					edge_delete = combs_by_size[n].pop()
-		    					print("Selected subset:", edge_delete)
-		    					
-		    					
-    '''
-		    			if apply_reconstruction( G_whole ,  sentence_tokens_dict, data, model, reconstruction_model, test_i, edge_delete, pred_graph, dec_rec_folder, device,  config, label_mapping, sentence_mapping, threshold_add, top_m, predifined_cf_class):
-		    				counterfactuals_dr_cfgnn.add(test_i)
-		    		dec_rec_time_end=time.time()
-		    		dec_rec_time_all= dec_rec_time_all + (dec_rec_time_end - dec_rec_time_start)
-					    					    		
-			   			   		
-			   			    		
-#--------------------------------------------------------------------------------------------------------------------				    			
+		    		combs_delete = {r: [list(c) for c in combinations(expl_edges, r)] for r in range(0, top_r + 1)} # len(expl_edges) is expensive		  		
 
+		    		first_time_start =time.time()
+		    		while any(combs_delete.values()):	
+		    			    		
+		    			t0 = time.perf_counter() 		    			
+		    			probs = np.array([np.exp(-a_del * (k - 1)**4) for k in range(0, len(expl_edges)+1)], dtype=float)
+		    			probs = probs / probs.sum()
+		    			n = np.random.choice(np.arange(0, len(expl_edges)+1), p=probs)
+		    			if not combs_delete[n]:		    			
+		    				continue
+		    			if n!=0:		    				
+		    				edge_delete = random.choice(combs_delete[n])
+		    				combs_delete[n].remove((edge_delete))
+		    			elif n==0: 
+		    				edge_delete = []
+		    				combs_delete[0]=[]			    					    			
+			    		G_full_dr=G_whole.copy()
+			    		if edge_delete:			    			
+			    			for edge in edge_delete:			    			
+			    				u, v = edge			    				
+			    				G_full_dr.remove_edge(u, v)			    	
+			    		dec_time += time.perf_counter() - t0
+   					    							    		
+			    		temp_data = from_networkx(G_full_dr)
+			    		temp_data=temp_data.to(device)
+			    		temp_data.x=data.x
+			    		temp_data.edge_index = add_remaining_self_loops(temp_data.edge_index, num_nodes=temp_data.num_nodes)[0]
+			    		nodes = list(G_full_dr.nodes())
+			    		non_existing_edges = [edge for edge in combinations(nodes, 2) if tuple(sorted(edge)) not in {tuple(sorted(e)) for e in G_full_dr.edges()}]
+			    		
+			    		if len(non_existing_edges) > 0  :
+			    		
+			    			t_rec_model = time.perf_counter()
+			    			
+			    			edge_index_lp = torch.tensor(non_existing_edges, dtype=torch.long).T
+			    			scores = reconstruction_model(temp_data, edge_index_lp,  one_hot_reconst, class_one_hot=predifined_cf_class).float().sigmoid()
+			    			
+			    			rec_model_time = time.perf_counter() - t_rec_model
+			    			
+			    			mask = scores > threshold_add			    			
+			    			mask = mask.to(edge_index_lp.device)
+			    			filtered_edges = edge_index_lp[:, mask]
+			    			filtered_edges = [tuple(filtered_edges[:,i].tolist()) for i in range(filtered_edges.size(1))]
+ 			
+			    			pairs = {m: [list(m) for m in combinations(filtered_edges, m)] for m in range(0, top_m + 1)} 
+			    			rec_time_small = 0.0
+
+			    			while any(pairs.values()):
+			    				t1 = time.perf_counter()
+			    				
+			    				probs = np.array([np.exp(-a_add * (k - 1)**4) for k in range(0, len(filtered_edges) + 1)], dtype=float)
+			    				probs = probs / probs.sum()
+			    				m = np.random.choice(np.arange(0, len(filtered_edges)+1), p=probs)
+			    				if not pairs[m]:
+			    					continue
+			    				if m!=0:
+			    					edge_add  = random.choice(pairs[m])
+			    					pairs[m].remove((edge_add))
+			    				elif m==0:
+			    					edge_add = []
+			    					pairs[0]=[]	
+			    							    				
+			    				G_full_dr2 = G_full_dr.copy()			    				
+			    				if edge_add:
+					    			for u, v in edge_add:
+					    				G_full_dr2.add_edge(u, v)
+
+				    			rec_time_small += time.perf_counter() - t1
+				    			
+				    			assert list(G_full_dr2.nodes()) == list(range(data.num_nodes)), f"Node order mismatch!"
+				    			pyg_lp = from_networkx(G_full_dr2)
+				    			pyg_lp = pyg_lp.to(device)
+				    			pyg_lp.edge_index = add_remaining_self_loops(pyg_lp.edge_index, num_nodes=pyg_lp.num_nodes)[0]
+				    			pyg_lp.x = data.x
+				    			pred_lp= model(pyg_lp).argmax(-1).item()
+				    			if pred_graph!=pred_lp:
+
+				    				if time_flag==True:
+				    					first_time_end = time.time()
+	    								first_time = first_time_end-first_time_start
+	    								sum_first_time += first_time	    							
+	    								time_flag=False	
+				    				counterfactuals_dr_cfgnn.add(test_i)			    				
+
+					    			deleted_edges_str = "_".join([f"{a}-{b}" for a, b in edge_delete]) if edge_delete else "none"
+					    			added_edges_str   = "_".join([f"{a}-{b}" for a, b in edge_add]) if edge_add else "none"
+					    			save_name = f"{test_i}_added_({added_edges_str})_del_({deleted_edges_str})_pred_orig_{pred_graph}_pred_cf_{pred_lp}.pt"
+					    			save_path = os.path.join(dec_rec_folder, save_name)
+					    			torch.save(pyg_lp.cpu(), save_path)
+	    			
+				    				cf_nx = nx.Graph()
+				    				cf_nx.add_nodes_from(G_whole.nodes())
+				    				orig_edges = set(G_whole.edges())
+				    				del_edges  = set(edge_delete)
+				    				add_edges  = set(edge_add)
+				    				black_edges = del_edges & add_edges          				    			
+				    				red_edges   = del_edges - black_edges        
+				    				green_edges = add_edges - black_edges        
+				    				blue_edges  = orig_edges - red_edges  
+	
+				    				pos = nx.spring_layout(G_whole, seed=42)
+				    				plt.figure(figsize=(6, 6))
+				    				nx.draw_networkx_nodes(cf_nx, pos, node_color='lightgray', node_size=500)
+				    				nx.draw_networkx_edges(cf_nx, pos, edgelist=blue_edges, edge_color='blue', width=2)
+				    				nx.draw_networkx_edges(cf_nx, pos, edgelist=red_edges, edge_color='red', width=2)
+				    				nx.draw_networkx_edges(cf_nx, pos, edgelist=green_edges, edge_color='green', width=2)
+				    				nx.draw_networkx_edges(cf_nx, pos, edgelist=black_edges, edge_color='black', width=2)
+
+				    				if hasattr(data, 'smiles'): 
+				    					labels_to_use = {node: f"{node}: {label_mapping.get(node, '')}" for node in cf_nx.nodes}
+				    					nx.draw_networkx_labels(cf_nx, pos, labels=labels_to_use)
+				    				elif config.datasets.dataset_name in ["graph_sst2", "graph_sst5", "twitter"]:
+				    					labels_to_use = {node: f"{node}: {sentence_mapping.get(node, '')}" for node in cf_nx.nodes}
+				    					nx.draw_networkx_labels(cf_nx, pos, labels=labels_to_use)
+				    					sentence_tokens = sentence_tokens_dict.get(str(test_i), [])
+				    					sentence_text = " ".join(sentence_tokens)
+				    					plt.title(f"{sentence_text}")
+				    				else: 
+				    					labels_to_use = {node: f"{node}" for node in cf_nx.nodes}
+				    					nx.draw_networkx_labels(cf_nx, pos, labels=labels_to_use)
+				    				plt.axis('off')
+				    				plt.tight_layout()
+				    				img_path = save_path.replace('.pt', '.png')
+				    				plt.savefig(img_path, bbox_inches='tight')
+				    				plt.close()
+				   
+				    	    	
+	    					rec_time += (rec_time_small+rec_model_time)
+	    			total_rec_time += rec_time
+	    			total_dec_time += dec_time
+	    			
+	    	'''
 	    	# NAIVE random baseline	    	
 	    	if config.dr_cfgnn.run_random_baseline :	
 		    	start_time = time.time()
@@ -493,17 +480,9 @@ def pipeline(config):
     							plt.close()
     							found_cf = True
     							break
-    	
-
 #--------------------------------------------------------------------------------------------------------------------
-	    				
-    
-    #save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"robustness_helper_{config.datasets.dataset_name}.csv")
-    #with open(save_path, "a") as f:
-    	#f.writelines(lines) 
+
     '''
-
-
     model_accuracy = accuracy_score(all_labels, all_preds)
     print(f'Model Accuracy: {model_accuracy:.14f}')
     print("")
@@ -511,8 +490,7 @@ def pipeline(config):
     print("Same predictions of subgraph explanation and original graph")
     print(f"{same_pred_graph_subgraph}/{same_pred_graph_subgraph + diff_pred_graph_subgraph }")
     print("")
-    
-    
+       
     print("Counterfactuals with dec and rec")
     print(f"{len(counterfactuals_dr_cfgnn)}/{same_pred_graph_subgraph }")
     print(" ")
@@ -521,20 +499,12 @@ def pipeline(config):
     print(f"{len(counterfactuals_naive)}/{same_pred_graph_subgraph + diff_pred_graph_subgraph }")
     print(" ")
     
+    average_dec_time = total_dec_time / same_pred_graph_subgraph
+    print(average_dec_time)
+    average_rec_time = total_rec_time / same_pred_graph_subgraph
+    print(average_rec_time)
+    print(sum_first_time/ len(counterfactuals_dr_cfgnn) )
 
-    dec_rec_time_all=dec_rec_time_all/same_pred_graph_subgraph
-    print(f"Total dec/rec time: {dec_rec_time_all:.4f} sec")
- 
-    
-
-   
-   
-
-  
-    
-    
-
-    
 
 if __name__ == '__main__':
     import sys
