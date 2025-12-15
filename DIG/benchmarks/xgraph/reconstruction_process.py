@@ -374,6 +374,7 @@ def pipeline(config):
     train_graphs=[]
     for i, graph in enumerate(dataset):
     	if i not in test_indices:
+    		print(graph.edge_index)
     		train_graphs.append(graph)
 
 

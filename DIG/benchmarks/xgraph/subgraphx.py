@@ -174,7 +174,7 @@ def pipeline(config):
             
             
             saved_MCTSInfo_list = None
-            prediction = model(data).argmax(-1).item()
+            prediction = model(datanai poio data).argmax(-1).item()
             
             all_preds.append(prediction)  # WE ADD IT
             all_labels.append(data.y.item()) # WE ADD IT
