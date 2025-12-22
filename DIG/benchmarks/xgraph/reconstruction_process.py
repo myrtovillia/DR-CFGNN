@@ -54,7 +54,7 @@ import dig
 print("Using dig from:", dig.__file__)
 from torch import nn
 from torch.optim.lr_scheduler import OneCycleLR
-from reconstruction_model_hyperparameters import hyperparams
+from benchmarks.xgraph.reconstruction_model_hyperparameters import hyperparams
 
 
 
@@ -374,7 +374,7 @@ def pipeline(config):
     train_graphs=[]
     for i, graph in enumerate(dataset):
     	if i not in test_indices:
-    		print(graph.edge_index)
+    		#print(graph.edge_index)
     		train_graphs.append(graph)
 
 

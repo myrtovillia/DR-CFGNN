@@ -1,59 +1,51 @@
 
 
-**Note 1:** We explicitly state that our work was built on top of the DIG library https://github.com/divelab/DIG.git and the survey paper https://arxiv.org/abs/2012.15445 by Yuan et al. The authors of the survey evaluated numerous state-of-the-art explanation methods for Graph Neural Networks (GNNs) and developed an open source library for GNN explainability, released as part of the DIG library. 
+**Note 1:** We explicitly state that our work was built on top of the DIG library and the survey paper https://arxiv.org/abs/2012.15445 by Yuan et al. The authors of the survey developed an open source library for GNN explainability, released as part of the DIG library. 
 
-'dig' from their github contains multiple folders. We kept only the relevant folder, xgraph, and modified some of its scripts in order to create the incomplete synthetic dataset and inject noise. 
+'dig' from their github contains multiple folders. We kept only the relevant folder, xgraph, and modified some of its scripts in order to create more synthetic datasets and inject noise. 
 
 
 --------------------------------------------------------------------------------------------
+**Set up**
 
-**Step 0 :** 
+Download datasets (folder `datasets`), trained models (folder `checkpoints`), the trained reconstruction models (folders `checkpoints_reconstruction_False` and `checkpoints_reconstruction_True`) and the factual explanations from SubgraphX (folder `results`) from Google Drive and place everything under: `DIG/benchmarks/xgraph/` (Drive link: https://drive.google.com/drive/folders/1JarbqYYSlZD3mvfvkQ-hcs0tCKOeYMDn?usp=sharing). 
 
-The synthetic datasets and BBBP will be created automatically by running any of the codes below and will be saved in a folder called dataset inside `DIG/benchmarks/xgraph/`. Download the datasets Graph-SST2, Graph-SST5, and Twitter manually from Google Drive using the link displayed in the command line prompt.
-
-
+Download the datasets Graph-SST2, Graph-SST5, and Twitter manually using the link displayed in the command line prompt.
 
 
-**Step 1 :** 
 
-Train the models by opening a terminal in the `DIG` folder and run: 
 
+**Alternatively, generate/train your own.** 
+
+Open a terminal in the `DIG` folder : 
+
+1. The synthetic datasets and BBBP will be created automatically by running any of the codes below. 
+
+
+
+2. Train the models : 
 `python -m benchmarks.xgraph.train_gnns datasets=ba_2motifs`
 
-Alternatively, download the checkpoints provided by the paper https://arxiv.org/abs/2012.15445 by Yuan et al. from <https://drive.google.com/drive/u/0/folders/19krHmYpGDmR4abDB3bz0fVLYUeFmsmR7> and save them in a folder named checkpoints inside `DIG/benchmarks/xgraph/`. 
+
+
+3. Train the reconstruction step  : 
+`python -m benchmarks.xgraph.reconstruction_process datasets=ba_2motifs one_hot_reconst=True`
 
 
 
-
-**Step 2 :** 
-
-Train the explainer by opening a terminal in the `DIG` folder and run: 
-
+4. Train the explainer : 
 `python -m benchmarks.xgraph.subgraphx datasets=ba_2motifs explainers=subgraphx`
 
-Alternatively, download the factual explanations from SubgraphX from <<https://drive.google.com/drive/u/0/folders/1zNm9i1XvAMeZsmvzS1fyeIwpnaU8AkK7>>. 
 
 
 
+**RUN DR-CFGNN FRAMEWORK**
 
-**Step 3 :**
-
-Train the reconstruction step : 
-
-`python reconstruction_process.py datasets=ba_2motifs one_hot_reconst=True` or
-`python reconstruction_process.py datasets=ba_2motifs one_hot_reconst=False`
-This will create the folder checkpoints_reconstruction_True.
-
-
-
-
-**Step 4 :** 
-
-Run DR-CFGNN framework by opening a terminal in the `DIG/benchmarks/xgraph` folder and run: 
-
-`python DR_CFGNN.py datasets=ba_2motifs one_hot_reconst=True`. 
+`python -m benchmarks.xgraph.DR_CFGNN datasets=ba_2motifs`. 
 
 This will generate a folder named `DR_CFGNN`, which contains subfolders titled with the dataset and the parameters. 
+
+
 
 
 

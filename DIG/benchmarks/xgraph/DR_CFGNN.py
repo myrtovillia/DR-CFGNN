@@ -32,9 +32,9 @@ import hydra
 from omegaconf import OmegaConf
 from torch_geometric.utils import add_remaining_self_loops, coalesce, remove_self_loops, add_self_loops, from_networkx, to_networkx
 from sklearn.metrics import accuracy_score, roc_auc_score
-from utils import check_dir, fix_random_seed
-from gnnNets import get_gnnNets
-from dataset import get_dataset, get_dataloader
+from benchmarks.xgraph.utils import check_dir, fix_random_seed
+from benchmarks.xgraph.gnnNets import get_gnnNets
+from benchmarks.xgraph.dataset import get_dataset, get_dataloader
 from torch_geometric.loader import DataLoader
 from torch.nn import BCEWithLogitsLoss
 from networkx.algorithms.isomorphism import is_isomorphic
@@ -46,8 +46,8 @@ import json
 from dig.xgraph.dataset import SynGraphDataset
 from dig.xgraph.method.subgraphx import find_closest_node_result
 from dig.xgraph.utils.compatibility import compatible_state_dict
-from reconstruction_process import reconstruction_network
-from reconstruction_model_hyperparameters import hyperparams
+from benchmarks.xgraph.reconstruction_process import reconstruction_network
+from benchmarks.xgraph.reconstruction_model_hyperparameters import hyperparams
 from itertools import combinations, product
 import time
 IS_FRESH = False
@@ -248,20 +248,24 @@ def pipeline(config):
 ##########################################################################################################################################################################		
 	    		expl_edges = list(expl_subgraph.edges())
 	    		max_deletes = sum(comb(len(expl_edges), k) for k in range(0, top_r + 1))
-    		    			    			    		
+	    		non_existing_edges_cache = {} 
 	    		filtered_edges_cache = {} 
-	    		non_existing_edges_cache = {} 	    		
+	    		max_adds_cache = {}	 	    		   			    		
 	    		seen_adds_for_delete = defaultdict(set)
 	    		seen_deletes=set()
 	    		
 	    		if pred_graph != pred_subgraph:
 	    			max_deletes = 1	    		
-	    		start_time = time.perf_counter() 
+	    		 
 	    		time_limit = 60.0  
+	    		time_limit_2 = 10.0
+	    		start_time = time.perf_counter()
 	    		while len(seen_deletes) < max_deletes:
 	    			if time.perf_counter() - start_time > time_limit:
 	    				print("Time limit reached for dr_cfgnn.")
 	    				break
+	    				
+	    				
 	    				
 	    			# Deconstruction	    			    		
 	    			t0 = time.perf_counter()
@@ -282,6 +286,8 @@ def pipeline(config):
 		    				G_full_dr.remove_edge(u, v)
 		    		dec_time = dec_time + (time.perf_counter() - t0)
 		    		
+		    		
+		    		
 		    		# Reconstruction		    		
 		    		t1 = time.perf_counter()			   							    				    		
 		    		if edge_delete in non_existing_edges_cache:
@@ -296,32 +302,46 @@ def pipeline(config):
 		    			non_existing_edges_cache[edge_delete] = non_existing_edges		    	
 		    		if len(non_existing_edges) > 0  :		    					    		
 		    			if edge_delete in filtered_edges_cache:
-		    				filtered_edges = filtered_edges_cache[edge_delete]	    	
+		    				filtered_edges = filtered_edges_cache[edge_delete]
+		    				max_adds = max_adds_cache[edge_delete]	    	
 		    			else :
 			    			edge_index_lp = torch.tensor(non_existing_edges, dtype=torch.long).T
 			    			scores = reconstruction_model(temp_data, edge_index_lp,  one_hot_reconst, class_one_hot=predifined_cf_class).float().sigmoid() 
-			    			mask = scores > threshold_add			    			
+			    			mask = scores > threshold_add		
 			    			mask = mask.to(edge_index_lp.device)
 			    			filtered_edges = edge_index_lp[:, mask]
 			    			filtered_edges = [tuple(filtered_edges[:,i].tolist()) for i in range(filtered_edges.size(1))]
-			    			filtered_edges_cache[edge_delete] = filtered_edges			    			
-
+			    			filtered_edges_cache[edge_delete] = filtered_edges
+			    			max_adds = [comb(len(filtered_edges), k) for k in range(0, top_m + 1)]
+			    			max_adds_cache[edge_delete] = max_adds
 		    			probs = np.array([np.exp(-a_add * (k - center_add)**4) for k in range(0, top_m + 1)], dtype=float)
 	    				probs = probs / probs.sum()
-	    				m = min(len(filtered_edges), np.random.choice(np.arange(0, top_m + 1), p=probs))	    				
-		    			edge_add = tuple(random.sample(filtered_edges, m))
-		    			edge_add  = frozenset(edge_add )
-		    			if edge_add in seen_adds_for_delete[edge_delete]:
-		    				continue		    				
-	    				seen_adds_for_delete[edge_delete].add(edge_add)	    				
-	    				max_adds = sum(comb(len(filtered_edges), k) for k in range(0, top_m + 1))	
-	    				if len(seen_adds_for_delete[edge_delete]) == max_adds:	    					
-	    					seen_deletes.add(edge_delete) 	    				
+	    				m = min(len(filtered_edges), np.random.choice(np.arange(0, top_m + 1), p=probs))
+	    				count_m = sum(1 for ea in seen_adds_for_delete[edge_delete] if len(ea) == m)	    	    						
+	    				if count_m == max_adds[m]:   #if no new edge_add for this m, it will skip the while but we need no continue with the cf search
+	    					continue	    						
+		    			flag = False
+		    			start_time_2 = time.perf_counter()		    			
+		    			while count_m < max_adds[m]:		    				
+		    				if time.perf_counter() - start_time_2 > time_limit_2:
+		    					flag = True
+		    					print("Time limit reached for dr_cfgnn, inner while.")
+		    					break				    
+		    				edge_add = tuple(random.sample(filtered_edges, m))
+		    				edge_add  = frozenset(edge_add)
+		    				if edge_add not in seen_adds_for_delete[edge_delete]:	
+		    					seen_adds_for_delete[edge_delete].add(edge_add)
+		    					break  
+	    				if flag : # for the case it breaked from the time limit: if no new edge_add, no continue with the cf search
+	    					continue
+	    				if len(seen_adds_for_delete[edge_delete]) == sum(max_adds):	 					
+	    					seen_deletes.add(edge_delete)	   	    					 					
 	    				G_full_dr2 = G_full_dr.copy()			    				
 	    				if edge_add:
 			    			for u, v in edge_add:
 			    				G_full_dr2.add_edge(u, v)
 			    		rec_time = rec_time + ( time.perf_counter() - t1 )
+		    			
 		    			
 		    			assert list(G_full_dr2.nodes()) == list(range(data.num_nodes)), f"Node order mismatch!"
 		    			pyg_cf = from_networkx(G_full_dr2)
@@ -332,11 +352,13 @@ def pipeline(config):
 		    			if pred_graph!=pred_cf :
 		    				if time_flag==True:		    					
 		    					first_time = time.perf_counter() - start_time
-		    					cf_first_dr.append(first_time)
-		    					time_flag=False	
+		    					cf_first_dr.append(first_time)	    						
+		    					with open(os.path.join(dec_rec_folder, "first_cf_edges.txt"), "a") as f:
+		    						f.write(f"{test_i}\tDEL={list(edge_delete)}\tADD={list(edge_add)}\n")
+		    					time_flag=False
 		    				counterfactuals_dr_cfgnn.add(test_i)			    				
 
-			    			deleted_edges_str = "_".join([f"{a}-{b}" for a, b in edge_delete]) if edge_delete else ""
+			    			deleted_edges_str = "_".join([f"{a} -{b}" for a, b in edge_delete]) if edge_delete else ""
 			    			added_edges_str   = "_".join([f"{a}-{b}" for a, b in edge_add]) if edge_add else ""
 			    			save_name = f"{test_i}_added_({added_edges_str})_del_({deleted_edges_str})_pred_orig_{pred_graph}_pred_cf_{pred_cf}.pt"
 			    			save_path = os.path.join(dec_rec_folder, save_name)
@@ -377,7 +399,7 @@ def pipeline(config):
 		    				img_path = save_path.replace('.pt', '.png')
 		    				plt.savefig(img_path, bbox_inches='tight')
 		    				plt.close()
-				   				    	    			  								   				    	    
+
     			total_dec_time = total_dec_time + dec_time
     			total_rec_time = total_rec_time + rec_time
 ########################################################################################################################################################################## 
