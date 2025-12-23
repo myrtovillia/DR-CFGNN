@@ -8,9 +8,7 @@
 --------------------------------------------------------------------------------------------
 **Set up**
 
-Download datasets (folder `datasets`), trained models (folder `checkpoints`), the trained reconstruction models (folders `checkpoints_reconstruction_False` and `checkpoints_reconstruction_True`) and the factual explanations from SubgraphX (folder `results`) from Google Drive and place everything under: `DIG/benchmarks/xgraph/` (Drive link: https://drive.google.com/drive/folders/1JarbqYYSlZD3mvfvkQ-hcs0tCKOeYMDn?usp=sharing). 
-
-Download the datasets Graph-SST2, Graph-SST5, and Twitter manually using the link displayed in the command line prompt.
+Download datasets (folder `datasets`), trained models (folder `checkpoints`), the trained reconstruction models (folders `checkpoints_reconstruction_False` and `checkpoints_reconstruction_True`) and the factual explanations from SubgraphX (folder `results`) from Google Drive and place everything under: `DIG/benchmarks/xgraph/` (Drive link: https://drive.google.com/drive/folders/1JarbqYYSlZD3mvfvkQ-hcs0tCKOeYMDn?usp=sharing). Download the datasets Graph-SST2, Graph-SST5, and Twitter manually using the link displayed in the command line prompt.
 
 
 
@@ -29,6 +27,8 @@ Open a terminal in the `DIG` folder :
 
 
 3. Train the reconstruction step  : 
+`python -m benchmarks.xgraph.reconstruction_process datasets=ba_2motifs one_hot_reconst=False`
+or 
 `python -m benchmarks.xgraph.reconstruction_process datasets=ba_2motifs one_hot_reconst=True`
 
 
@@ -41,7 +41,7 @@ Open a terminal in the `DIG` folder :
 
 **RUN DR-CFGNN FRAMEWORK**
 
-`python -m benchmarks.xgraph.DR_CFGNN datasets=ba_2motifs`. 
+`python -m benchmarks.xgraph.DR_CFGNN datasets=ba_2motifs one_hot_reconst=False`. 
 
 This will generate a folder named `DR_CFGNN`, which contains subfolders titled with the dataset and the parameters. 
 

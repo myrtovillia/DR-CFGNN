@@ -57,24 +57,15 @@ from torch.optim.lr_scheduler import OneCycleLR
 from benchmarks.xgraph.reconstruction_model_hyperparameters import hyperparams
 
 
-
-
-
-
-
 class reconstruction_network(nn.Module):
-    def __init__(self, in_channels, hp,  one_hot_dim, one_hot_reconst):
+    def __init__(self, in_channels, hp, one_hot_reconst, one_hot_dim):
         super().__init__()
         self.hp = hp
         self.one_hot_dim = one_hot_dim
         self.one_hot_reconst = one_hot_reconst
+        self.proj_dim=200       
         hidden_channels = hp["hidden_channels"]
-        mlp_hidden_dim = hp["mlp_hidden_dim"]
-        
-        
-        self.proj_dim=200
-        
-        
+        mlp_hidden_dim = hp["mlp_hidden_dim"]     
         layers = []
         bns = []
         layers.append(GCNConv(in_channels, hidden_channels))
@@ -84,11 +75,9 @@ class reconstruction_network(nn.Module):
             bns.append(nn.BatchNorm1d(hidden_channels))
         self.convs = nn.ModuleList(layers)
         self.bns = nn.ModuleList(bns)
-        self.mlp_decoder = self.build_decoder(hidden_channels, mlp_hidden_dim, hp["mlp_layers"])
-        
-        if one_hot_reconst:
+        self.mlp_decoder = self.build_decoder(hidden_channels, mlp_hidden_dim, hp["mlp_layers"])       
+        if self.one_hot_reconst:
         	self.class_proj = nn.Sequential(nn.Linear(self.one_hot_dim, self.proj_dim),nn.ReLU(),nn.Linear(self.proj_dim, self.proj_dim))
-
 
 
     def build_decoder(self, hidden_channels, mlp_hidden_dim, mlp_layers):
@@ -109,7 +98,6 @@ class reconstruction_network(nn.Module):
         return nn.Sequential(*layers)
 
 
-
     def encode(self, x, edge_index):
         for conv, bn in zip(self.convs, self.bns):
             x = conv(x, edge_index)
@@ -119,44 +107,32 @@ class reconstruction_network(nn.Module):
         return x
 
 
-
-    def forward(self, data, edge_label_index, one_hot_reconst, class_one_hot):
+    def forward(self, data, edge_label_index, predefined_cf_class):
     	 z = self.encode(data.x, data.edge_index)
-
-    	 if one_hot_reconst:
-    	 	# training
-    	 	if class_one_hot is None: 
-    	 		one_hot_all = data.one_hot_vector[data.batch] 
-    	 	# inference
+    	 if self.one_hot_reconst:
+    	 	# Training
+    	 	if predefined_cf_class is None:     	 	
+    	 		one_hot_all = data.one_hot_vector[data.batch]     	 		
+    	 	# Inference
     	 	else:
     	 		num_nodes = data.x.size(0)
-    	 		class_tensor = torch.tensor([class_one_hot], device=data.x.device)
+    	 		class_tensor = torch.tensor([predefined_cf_class], device=data.x.device)
     	 		one_hot_vector = F.one_hot(class_tensor, num_classes=self.one_hot_dim).float()
-    	 		one_hot_all = one_hot_vector.repeat(num_nodes, 1)   
-    	 			 		
+    	 		one_hot_all = one_hot_vector.repeat(num_nodes, 1)    
     	 	one_hot_embed = F.relu(self.class_proj(one_hot_all))
-    	 	z = torch.cat([z, one_hot_embed], dim=-1)  
-    	 		 	
+    	 	z = torch.cat([z, one_hot_embed], dim=-1)   	 		 	
     	 src = z[edge_label_index[0]]
     	 dst = z[edge_label_index[1]]
     	 edge_rep = torch.cat([src, dst], dim=-1)
     	 return self.mlp_decoder(edge_rep).squeeze(-1)
 
 
-
 def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num_classes ):
-
-
     	
     if one_hot_reconst:
-        for graph in all_graphs:
+        for graph in all_graphs:        
             graph.one_hot_vector = F.one_hot(graph.y, num_classes=num_classes).float()
-    else:
-        for graph in all_graphs:
-            graph.one_hot_vector = None
-           
-    	
-    	
+   
     random.shuffle(all_graphs)
     num_total = len(all_graphs)
     num_train = int(0.82 * num_total)
@@ -164,26 +140,23 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
     train_graphs = all_graphs[:num_train]
     val_graphs = all_graphs[num_train : num_train + num_val]
     test_graphs = all_graphs[num_train + num_val: ] # we left some test graphs for testing our method
-
-    
  
-    transform_train = RandomLinkSplit(num_val=0.0,num_test=0.0,is_undirected=True,split_labels=True,add_negative_train_samples=True, neg_sampling_ratio=hp["neg_ratio"], disjoint_train_ratio=hp["disjoint_train_ratio"])
-    transform_val   = RandomLinkSplit(num_val=0.2, num_test=0.0, is_undirected=True, split_labels=True,add_negative_train_samples=False, neg_sampling_ratio=hp["neg_ratio"])
-    transform_test  = RandomLinkSplit(num_val=0.0, num_test=0.2, is_undirected=True, split_labels=True,add_negative_train_samples=False, neg_sampling_ratio=hp["neg_ratio"])
+    transform_train = RandomLinkSplit(num_val=0.0, num_test=0.0, is_undirected=True, split_labels=True, add_negative_train_samples=True,  neg_sampling_ratio=hp["neg_ratio"], disjoint_train_ratio=hp["disjoint_train_ratio"])
+    transform_val   = RandomLinkSplit(num_val=0.2, num_test=0.0, is_undirected=True, split_labels=True, add_negative_train_samples=False, neg_sampling_ratio=hp["neg_ratio"])
+    transform_test  = RandomLinkSplit(num_val=0.0, num_test=0.2, is_undirected=True, split_labels=True, add_negative_train_samples=False, neg_sampling_ratio=hp["neg_ratio"])
     
-    MIN_EDGES = 4 
-    
+    MIN_EDGES = 4     
     train_dataset = []
     skipped_train = 0
     for graph in train_graphs:
     	if graph.edge_index.size(1) <= MIN_EDGES:
     		skipped_train += 1
     		continue
-    	train_graph=transform_train(graph)[0]    	
+    	train_graph=transform_train(graph)[0] # Data(x=[25, 10], edge_index=[2, 36], y=[1], pos_edge_label=[7], pos_edge_label_index=[2, 7], neg_edge_label=[17], neg_edge_label_index=[2, 17])
     	if hasattr(train_graph, 'neg_edge_label_index'):
-    		train_dataset.append(train_graph)
+    		train_dataset.append(train_graph)    		
     	else:
-    		skipped_train += 1   
+    		skipped_train += 1    
     print(f"Skipped {skipped_train} out of {len(train_graphs)} training graphs without neg_edge_label_index or with fewer than {MIN_EDGES} edges.")
     
     
@@ -215,27 +188,18 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
     print(f"Skipped {skipped_test} out of {len(test_graphs)} test graphs without neg_edge_label_index or with fewer than {MIN_EDGES} edges.")
     
 
-
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=16)
     
-    
-
     epochs=150
-    model = reconstruction_network(in_channels, hp=hp, one_hot_dim=num_classes, one_hot_reconst=one_hot_reconst).to(device)
+    model = reconstruction_network(in_channels, hp, one_hot_reconst, one_hot_dim=num_classes).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
-    scheduler = OneCycleLR(optimizer,
-                         max_lr=1e-4,  
-                         epochs=epochs,
-                         steps_per_epoch=len(train_loader),
-                         pct_start=0.3)
-                         
+    scheduler = OneCycleLR(optimizer, max_lr=1e-4, epochs=epochs, steps_per_epoch=len(train_loader),  pct_start=0.3)                        
     criterion = BCEWithLogitsLoss()
-
     best_val_auc = 0
     best_model_state = None
     patience =hp["early_stop_patience"]
-    patience_counter = 0
+    patience_counter = 0    
 
     for epoch in range(epochs):
         model.train()
@@ -247,54 +211,41 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
         	batch = batch.to(device)
         	optimizer.zero_grad()      	
         	edge_label_index = torch.cat([batch.pos_edge_label_index, batch.neg_edge_label_index], dim=-1)
-        	edge_label = torch.cat([batch.pos_edge_label, batch.neg_edge_label])
+        	edge_label = torch.cat([batch.pos_edge_label, batch.neg_edge_label])       	
         	
-        	
-
-        	#edge_set1 = set(map(tuple, batch.edge_index.t().tolist()))
+        	#edge_set1 = set(map(tuple, batch.pos_edge_label_index.t().tolist()))
         	#edge_set2 = set(map(tuple, batch.neg_edge_label_index.t().tolist()))
         	#reversed_overlap = sum((v, u) in edge_set1 for (u, v) in edge_set2)
         	#print(reversed_overlap)
-        	#reversed_overlap_2 = sum((v, u) in edge_set2 for (u, v) in edge_set1)
-        	#print(reversed_overlap_2)
-        	
-        	
-        	out = model(batch, edge_label_index, one_hot_reconst=one_hot_reconst, class_one_hot=None)
-        	
-
+              	
+        	out = model(batch, edge_label_index, predefined_cf_class=None)
         	loss = criterion(out, edge_label.float())
         	loss.backward()
         	torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         	optimizer.step()
         	scheduler.step()
-        	total_loss += loss.item()
+        	total_loss += loss.item()       	
         	train_preds.append(out.sigmoid().detach().cpu())
         	train_labels.append(edge_label.cpu())
-
         train_loss = total_loss / len(train_loader)
         train_preds = torch.cat(train_preds).numpy()
         train_labels = torch.cat(train_labels).numpy()
         train_auc = roc_auc_score(train_labels, train_preds)
         
-############################################################################################################################################       
-
-
-
+        
         model.eval()
         val_total_loss = 0
         val_preds, val_labels = [], []
         with torch.no_grad():
             for graph in val_loader:
-
                 graph = graph.to(device)            
                 edge_label_index = torch.cat([graph.pos_edge_label_index, graph.neg_edge_label_index], dim=-1)
                 edge_label = torch.cat([graph.pos_edge_label, graph.neg_edge_label])                
-                out = model(graph, edge_label_index, one_hot_reconst=one_hot_reconst, class_one_hot=None)                
+                out = model(graph, edge_label_index, predefined_cf_class=None)                
                 loss = criterion(out, edge_label.float())
                 val_total_loss += loss.item()
                 val_preds.append(out.sigmoid().cpu())
                 val_labels.append(edge_label.cpu())
-
         val_loss = val_total_loss / len(val_loader)
         val_preds = torch.cat(val_preds).numpy()
         val_labels = torch.cat(val_labels).numpy()
@@ -311,7 +262,6 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
             if patience_counter >= patience:
                 print(f"Early stopping at epoch {epoch:02d}")
                 break
-
     print(f"Best Validation AUC: {best_val_auc:.4f}")
     model.load_state_dict(best_model_state)
 
@@ -323,10 +273,9 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
             graph = graph.to(device)          
             edge_label_index = torch.cat([graph.pos_edge_label_index, graph.neg_edge_label_index], dim=-1)
             edge_label = torch.cat([ graph.pos_edge_label, graph.neg_edge_label])
-            out = model(graph, edge_label_index, one_hot_reconst=one_hot_reconst, class_one_hot=1)
+            out = model(graph, edge_label_index,  predefined_cf_class=1)
             test_preds.append(out.sigmoid().cpu())
             test_labels.append(edge_label.cpu())
-
     test_preds = torch.cat(test_preds).numpy()
     test_labels = torch.cat(test_labels).numpy()
     test_auc = roc_auc_score(test_labels, test_preds)
@@ -335,16 +284,12 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
     return model
 
 
-
-  
 @hydra.main(config_path="config", config_name="config")
 def pipeline(config):
-    
-    
+      
     config.models.param = config.models.param[config.datasets.dataset_name]
     config.models.param.add_self_loop = False
     one_hot_reconst=config.one_hot_reconst
-
     
     if torch.cuda.is_available():
         device = torch.device('cuda', index=config.device_id)
@@ -371,32 +316,22 @@ def pipeline(config):
         print(test_indices)
 
     fix_all_seeds(42)
-    train_graphs=[]
+    graphs_except_test=[]
     for i, graph in enumerate(dataset):
     	if i not in test_indices:
-    		#print(graph.edge_index)
-    		train_graphs.append(graph)
-
+    		graphs_except_test.append(graph) # contains both 0-1 and 1-0,  no self loops
 
     in_channels = dataset.num_node_features
     hp = hyperparams(dataset)
-    
-
-    model_reconstruction = run_reconstruction(train_graphs, device, dataset.num_node_features, hp,  one_hot_reconst, dataset.num_classes )
-    
-    
+    model_reconstruction = run_reconstruction(graphs_except_test, device, dataset.num_node_features, hp,  one_hot_reconst, dataset.num_classes )     
     rec_save_dir = os.path.join(os.path.dirname(__file__), f'checkpoints_reconstruction_{one_hot_reconst}')
     os.makedirs(rec_save_dir, exist_ok=True)
     save_path = os.path.join(rec_save_dir, f"reconstruction_model_{config.datasets.dataset_name}.pt")
     torch.save(model_reconstruction.state_dict(), save_path)
     print(f"Saved reconstruction model at: {save_path}")
-  
-
        
 if __name__ == '__main__':
     import sys
     sys.argv.append(f"datasets.dataset_root={os.path.join(os.path.dirname(__file__), 'datasets')}")
     pipeline()
     
-
-

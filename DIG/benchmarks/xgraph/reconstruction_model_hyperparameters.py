@@ -11,7 +11,6 @@ def hyperparams(dataset_name):
             "neg_ratio": 1,
             "disjoint_train_ratio": 0.40,
         }
-
     elif dataset_name == "bbbp":
         return {
             "num_encoder_layers": 3,
@@ -23,14 +22,13 @@ def hyperparams(dataset_name):
             "neg_ratio": 1,
             "disjoint_train_ratio": 0.20,
         }
-
     else:
         return {
             "num_encoder_layers": 4,
             "encoder_dropout": 0.05, 
             "mlp_layers": 4,
             "hidden_channels": 200,
-            "mlp_hidden_dim": 4000,
+            "mlp_hidden_dim": 4000,  #2000 for ba_2motifs_3class gives 62/82
             "early_stop_patience": 20, 
             "neg_ratio": 2.5,
             "disjoint_train_ratio": 0.30,

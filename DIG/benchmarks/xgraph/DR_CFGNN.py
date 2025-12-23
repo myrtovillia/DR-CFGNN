@@ -77,7 +77,7 @@ def pipeline(config):
     top_m                             = config.dr_cfgnn.top_m
     top_r                             = config.dr_cfgnn.top_r
     threshold_add                     = config.dr_cfgnn.threshold_add
-    predifined_cf_class               = config.dr_cfgnn.predifined_cf_class 
+    predefined_cf_class               = config.dr_cfgnn.predefined_cf_class 
     a_del                             = config.dr_cfgnn.a_del
     a_add                             = config.dr_cfgnn.a_add
     center_del                        = config.dr_cfgnn.center_del
@@ -139,16 +139,16 @@ def pipeline(config):
     	with open(json_path) as f:
     		sentence_tokens_dict = json.load(f)
     else:
-    	sentence_tokens_dict=None
-   	  
+    	sentence_tokens_dict=None  	  
+    
     
     if config.dr_cfgnn.run_dr_cfgnn:
     	hp = hyperparams(dataset) 
-    	reconstruction_model = reconstruction_network(in_channels=dataset.num_features, hp=hp, one_hot_dim=dataset.num_classes, one_hot_reconst=one_hot_reconst).to(device)   
+    	reconstruction_model = reconstruction_network(in_channels=dataset.num_features, hp=hp, one_hot_reconst=one_hot_reconst, one_hot_dim=dataset.num_classes).to(device)   
     	model_path = os.path.join(os.path.dirname(__file__), f'checkpoints_reconstruction_{one_hot_reconst}', f"reconstruction_model_{config.datasets.dataset_name}.pt")
     	reconstruction_model.load_state_dict(torch.load(model_path, map_location=device))
     	reconstruction_model.eval()
-
+    
     
     if config.denoising_mode == "none":
     	pt_files = {int(f.split('_')[1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt') and "_DENOISED" not in f}  
@@ -169,14 +169,13 @@ def pipeline(config):
     
     # ---FOLDERS TO SAVE THE RESULTS---
     if one_hot_reconst:
-    	base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN_images", f"{config.datasets.dataset_name}_max_nodes_{max_nodes}_thres_{threshold_add}_m_{top_m}_r_{top_r}_predefined_cf_class_{predifined_cf_class}")
+    	base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN_images", f"{config.datasets.dataset_name}_max_nodes_{max_nodes}_thres_{threshold_add}_m_{top_m}_r_{top_r}_predefined_cf_class_{predefined_cf_class}")
     else:
     	base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN_images", f"{config.datasets.dataset_name}_max_nodes_{max_nodes}_thres_{threshold_add}_m_{top_m}_r_{top_r}")
 
     if config.dr_cfgnn.run_dr_cfgnn:
     	dec_rec_folder = os.path.join(base_counterfactuals_dir, "DR_CFGNN") 
     	os.makedirs(dec_rec_folder, exist_ok=True)     
-
     	
     if config.dr_cfgnn.run_random_baseline:   
     	naive_random_baseline = os.path.join(base_counterfactuals_dir, "naive_random_baseline")
@@ -306,7 +305,7 @@ def pipeline(config):
 		    				max_adds = max_adds_cache[edge_delete]	    	
 		    			else :
 			    			edge_index_lp = torch.tensor(non_existing_edges, dtype=torch.long).T
-			    			scores = reconstruction_model(temp_data, edge_index_lp,  one_hot_reconst, class_one_hot=predifined_cf_class).float().sigmoid() 
+			    			scores = reconstruction_model(temp_data, edge_index_lp, predefined_cf_class).float().sigmoid() 
 			    			mask = scores > threshold_add		
 			    			mask = mask.to(edge_index_lp.device)
 			    			filtered_edges = edge_index_lp[:, mask]

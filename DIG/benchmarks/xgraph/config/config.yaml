@@ -10,7 +10,7 @@ dr_cfgnn:
   top_m: 2
   top_r: 2
   threshold_add: 0.9
-  predifined_cf_class: 1 
+  predefined_cf_class: 1 
   run_dr_cfgnn: true
   run_random_baseline: true
   a_del : 0.5
