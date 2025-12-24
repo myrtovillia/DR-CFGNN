@@ -9,7 +9,7 @@ def hyperparams(dataset_name):
             "mlp_hidden_dim": 256,
             "early_stop_patience": 10,
             "neg_ratio": 1,
-            "disjoint_train_ratio": 0.40,
+            "disjoint_train_ratio": 0.35
         }
     elif dataset_name == "bbbp":
         return {
@@ -20,7 +20,7 @@ def hyperparams(dataset_name):
             "mlp_hidden_dim": 512,
             "early_stop_patience": 10,
             "neg_ratio": 1,
-            "disjoint_train_ratio": 0.20,
+            "disjoint_train_ratio": 0.35
         }
     else:
         return {
@@ -31,7 +31,11 @@ def hyperparams(dataset_name):
             "mlp_hidden_dim": 4000,  #2000 for ba_2motifs_3class gives 62/82
             "early_stop_patience": 20, 
             "neg_ratio": 2.5,
-            "disjoint_train_ratio": 0.30,
+            "disjoint_train_ratio": 0.30
         }
 
+# NOTE: With RandomLinkSplit(disjoint_train_ratio=r), supervision edges are int(r * E_undirected).
+# We set MIN_EDGES=4 (2 undirected). Thus, from 6 (3 undirected), int(r*E_undirected) can become 0 -> no disjoint supervision split.
+# Then message passing and supervision overlap.
+# We ensure r is high enough so int(r*E_undirected) >= 1, (0.35 * 3) = 1.05 so at least 1 supervision edge!
 

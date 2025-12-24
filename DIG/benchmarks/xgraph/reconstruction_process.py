@@ -145,18 +145,24 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
     transform_val   = RandomLinkSplit(num_val=0.2, num_test=0.0, is_undirected=True, split_labels=True, add_negative_train_samples=False, neg_sampling_ratio=hp["neg_ratio"])
     transform_test  = RandomLinkSplit(num_val=0.0, num_test=0.2, is_undirected=True, split_labels=True, add_negative_train_samples=False, neg_sampling_ratio=hp["neg_ratio"])
     
-    MIN_EDGES = 4     
+    MIN_EDGES = 4   
+      
     train_dataset = []
     skipped_train = 0
     for graph in train_graphs:
     	if graph.edge_index.size(1) <= MIN_EDGES:
     		skipped_train += 1
     		continue
-    	train_graph=transform_train(graph)[0] # Data(x=[25, 10], edge_index=[2, 36], y=[1], pos_edge_label=[7], pos_edge_label_index=[2, 7], neg_edge_label=[17], neg_edge_label_index=[2, 17])
+    	train_graph=transform_train(graph)[0]
     	if hasattr(train_graph, 'neg_edge_label_index'):
     		train_dataset.append(train_graph)    		
     	else:
-    		skipped_train += 1    
+    		skipped_train += 1      	
+    	edge_set1 = set(map(tuple, train_graph.pos_edge_label_index.t().tolist()))
+    	edge_set2 = set(map(tuple, train_graph.edge_index.t().tolist()))
+    	overlap = sum((v, u) in edge_set1 for (u, v) in edge_set2)    	
+    	if overlap!=0:
+    		print("ooooooooooooooooooooooooooooooooooooverlap1")	
     print(f"Skipped {skipped_train} out of {len(train_graphs)} training graphs without neg_edge_label_index or with fewer than {MIN_EDGES} edges.")
     
     
@@ -170,7 +176,12 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
     	if hasattr(val_graph, 'neg_edge_label_index'):
     		val_dataset.append(val_graph)
     	else:
-    		skipped_val += 1
+    		skipped_val += 1 		
+    	edge_set1 = set(map(tuple, val_graph.pos_edge_label_index.t().tolist()))
+    	edge_set2 = set(map(tuple, val_graph.edge_index.t().tolist()))
+    	overlap = sum((v, u) in edge_set1 for (u, v) in edge_set2)  
+    	if overlap!=0:
+    		print("ooooooooooooooooooooooooooooooooooooverlap2")     		
     print(f"Skipped {skipped_val} out of {len(val_graphs)} validation graphs without neg_edge_label_index or with fewer than {MIN_EDGES} edges.")
     
 
@@ -184,7 +195,12 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
     	if hasattr(test_graph, 'neg_edge_label_index'):
     		test_dataset.append(test_graph)
     	else:
-    		skipped_test += 1	
+    		skipped_test += 1   		
+    	edge_set1 = set(map(tuple, test_graph.pos_edge_label_index.t().tolist()))
+    	edge_set2 = set(map(tuple, test_graph.edge_index.t().tolist()))
+    	overlap = sum((v, u) in edge_set1 for (u, v) in edge_set2)    	
+    	if overlap!=0:
+    		print("ooooooooooooooooooooooooooooooooooooverlap3")        			
     print(f"Skipped {skipped_test} out of {len(test_graphs)} test graphs without neg_edge_label_index or with fewer than {MIN_EDGES} edges.")
     
 
@@ -303,7 +319,7 @@ def pipeline(config):
     print(f"Dataset root: {dataset.root if hasattr(dataset, 'root') else 'N/A'}")
     print(f"Dataset processed_dir: {dataset.processed_dir if hasattr(dataset, 'processed_dir') else 'N/A'}")
     print(f"Dataset raw_dir: {dataset.raw_dir if hasattr(dataset, 'raw_dir') else 'N/A'}")
-    
+    print("one_hot_reconst : ", one_hot_reconst)
     dataset.data.x = dataset.data.x.float()
     dataset.data.y = dataset.data.y.squeeze().long()
     if config.models.param.graph_classification:
@@ -322,7 +338,8 @@ def pipeline(config):
     		graphs_except_test.append(graph) # contains both 0-1 and 1-0,  no self loops
 
     in_channels = dataset.num_node_features
-    hp = hyperparams(dataset)
+    hp = hyperparams(config.datasets.dataset_name)
+    print(hp)
     model_reconstruction = run_reconstruction(graphs_except_test, device, dataset.num_node_features, hp,  one_hot_reconst, dataset.num_classes )     
     rec_save_dir = os.path.join(os.path.dirname(__file__), f'checkpoints_reconstruction_{one_hot_reconst}')
     os.makedirs(rec_save_dir, exist_ok=True)

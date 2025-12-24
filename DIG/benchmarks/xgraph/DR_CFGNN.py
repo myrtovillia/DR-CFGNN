@@ -143,7 +143,7 @@ def pipeline(config):
     
     
     if config.dr_cfgnn.run_dr_cfgnn:
-    	hp = hyperparams(dataset) 
+    	hp = hyperparams(config.datasets.dataset_name)
     	reconstruction_model = reconstruction_network(in_channels=dataset.num_features, hp=hp, one_hot_reconst=one_hot_reconst, one_hot_dim=dataset.num_classes).to(device)   
     	model_path = os.path.join(os.path.dirname(__file__), f'checkpoints_reconstruction_{one_hot_reconst}', f"reconstruction_model_{config.datasets.dataset_name}.pt")
     	reconstruction_model.load_state_dict(torch.load(model_path, map_location=device))

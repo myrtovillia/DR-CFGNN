@@ -1,0 +1,3 @@
+- datasets=twitter
+- one_hot_reconst=false
+- datasets.dataset_root=/home/myrto/Desktop/codes/3_2026/DIG/benchmarks/xgraph/datasets
