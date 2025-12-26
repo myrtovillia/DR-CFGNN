@@ -9,6 +9,7 @@ from benchmarks.xgraph.gnnNets import get_gnnNets
 from benchmarks.xgraph.dataset import get_dataset, get_dataloader
 from benchmarks.xgraph.reconstruction_process import reconstruction_network
 from benchmarks.xgraph.reconstruction_model_hyperparameters import hyperparams
+
 from dig.xgraph.method import SubgraphX
 from dig.xgraph.dataset import SynGraphDataset
 from dig.xgraph.method.subgraphx import PlotUtils
@@ -17,6 +18,7 @@ from dig.xgraph.method.subgraphx import find_closest_node_result
 from dig.xgraph.utils.compatibility import compatible_state_dict
 from torch_geometric.utils import to_networkx, from_networkx
 import networkx as nx
+import time
 IS_FRESH = True
 
 
@@ -99,36 +101,47 @@ def pipeline(config):
         x_collector = XCollector()
         all_preds=[]
         all_labels=[]
-        
+
         if config.denoising_mode == "none":
         	do_denoising = False
         	suffix = ""
         elif config.denoising_mode == "without_one_hot":
         	do_denoising = True
         	config.one_hot_reconst = False
-        	suffix = "_DENOISED_NOONEHOT"
+        	suffix = "_denoised_without_one_hot"
         elif config.denoising_mode == "with_one_hot":
         	do_denoising = True
         	config.one_hot_reconst = True
-        	suffix = "_DENOISED_ONEHOT"
+        	suffix = "_denoised_with_one_hot"
         else:
         	raise ValueError("Invalid denoising_mode option")
        	
         if do_denoising:
-        	hp = hyperparams(dataset)
-        	reconstruction_model = reconstruction_network(in_channels=dataset.num_features, hp=hp, one_hot_dim=dataset.num_classes, one_hot_reconst=config.one_hot_reconst).to(device)
+        	hp = hyperparams(config.datasets.dataset_name)
+        	print(hp)
+        	print(config.one_hot_reconst)
+        	reconstruction_model = reconstruction_network(in_channels=dataset.num_features, hp=hp, one_hot_reconst=config.one_hot_reconst, one_hot_dim=dataset.num_classes).to(device)
         	model_path = os.path.join(os.path.dirname(__file__), f'checkpoints_reconstruction_{config.one_hot_reconst}', f"reconstruction_model_{config.datasets.dataset_name}.pt")
+        	print(model_path)
         	reconstruction_model.load_state_dict(torch.load(model_path, map_location=device))
         	reconstruction_model.eval()
+
+ 
 	    	
+        subgraphx_total_time = 0.0
+        subgraphx_n = 0
         for i, data in enumerate(dataset[test_indices]):
             index += 1
             data.to(device)
             data.edge_index = add_remaining_self_loops(data.edge_index, num_nodes=data.num_nodes)[0]
             
-            
-            
-            
+
+
+###################################################################################################            
+#26/12 
+
+
+
             if do_denoising:
             	G_whole = to_networkx(data, to_undirected=True)
             	G_whole.remove_edges_from(nx.selfloop_edges(G_whole)) 
@@ -136,7 +149,8 @@ def pipeline(config):
             	G_factual = G_whole.copy()
             	existing_edges = list(G_factual.edges())
             	wh_edge_index = torch.tensor(existing_edges, dtype=torch.long).T.to(device)
-            	scores = reconstruction_model(data, wh_edge_index, config.one_hot_reconst, class_one_hot=data.y.item() ).sigmoid()
+   
+            	scores = reconstruction_model(data, wh_edge_index,  predefined_cf_class=data.y.item() ).float().sigmoid()
             	sorted_scores, sorted_idx = torch.sort(scores, descending=False)
             	sorted_indices = sorted_idx.tolist()
             	
@@ -155,7 +169,7 @@ def pipeline(config):
             		new_prob = model(pyg_fact).softmax(dim=-1)[0, data.y.item()].item()
             		diff_prob =  old_prob - new_prob
             		
-            		if diff_prob > 0.02:
+            		if diff_prob > 0.2:
             			print(f"Removed edge ({u}, {v}) -> correct class prob dropped from {old_prob:.4f} to {new_prob:.4f}")
             			G_factual.add_edge(u, v)
             			break
@@ -165,14 +179,10 @@ def pipeline(config):
             	data_for_expl = pyg_fact
             else:
             	data_for_expl = data
-            	
-            
-            
-            
-            
+    
             
             saved_MCTSInfo_list = None
-            prediction = model(datanai poio data).argmax(-1).item()
+            prediction = model(data).argmax(-1).item() ### CHECkkkkkkkkkkkkkkkk WHICH DATA
             
             all_preds.append(prediction)  # WE ADD IT
             all_labels.append(data.y.item()) # WE ADD IT
@@ -182,6 +192,7 @@ def pipeline(config):
                 saved_MCTSInfo_list = torch.load(os.path.join(explanation_saving_dir, f'example_{test_indices[i]}.pt'))
                 print(f"load example {test_indices[i]}.")
 
+            t0 = time.perf_counter()
             explain_result, related_preds = \
                 subgraphx.explain(data_for_expl.x, data_for_expl.edge_index,
                                   max_nodes=config.explainers.max_ex_size,
@@ -189,6 +200,10 @@ def pipeline(config):
                                   saved_MCTSInfo_list=saved_MCTSInfo_list)
 
 
+            t1 = time.perf_counter()
+            subgraphx_total_time += (t1 - t0)
+            subgraphx_n += 1
+            
             torch.save(explain_result, os.path.join(explanation_saving_dir, f'example_{test_indices[i]}{suffix}.pt'))
 
             title_sentence = f'fide: {(related_preds["origin"] - related_preds["maskout"]):.3f}, ' \
@@ -234,6 +249,8 @@ def pipeline(config):
             related_preds = [related_preds]
             x_collector.collect_data(explain_result, related_preds, label=0)
 
+   
+    '''
     else:
         x_collector = XCollector()
         data = dataset.data
@@ -305,7 +322,16 @@ def pipeline(config):
             explain_result = [explain_result]
             related_preds = [related_preds]
             x_collector.collect_data(explain_result, related_preds, label=0)
+    '''
 
+
+
+    avg_t = subgraphx_total_time / subgraphx_n
+    print(f"SubgraphX total explain time: {subgraphx_total_time:.4f} s")
+    print(f"SubgraphX avg explain time per graph: {avg_t:.4f} s over {subgraphx_n} test graphs")
+    
+    
+    
     print(f'Fidelity: {x_collector.fidelity:.4f}\n'
           f'Fidelity_inv: {x_collector.fidelity_inv:.4f}\n'
           f'Sparsity: {x_collector.sparsity:.4f}')

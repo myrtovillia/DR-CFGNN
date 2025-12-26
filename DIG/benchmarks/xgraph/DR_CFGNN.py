@@ -151,11 +151,11 @@ def pipeline(config):
     
     
     if config.denoising_mode == "none":
-    	pt_files = {int(f.split('_')[1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt') and "_DENOISED" not in f}  
+    	pt_files = {int(f.split('_')[1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt') and "_denoised" not in f}  
     elif config.denoising_mode == "without_one_hot":
-    	pt_files = {int(f.split('_')[1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt') and "_DENOISED_NOONEHOT" in f}
+    	pt_files = {int(f.split('_')[1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt') and "_denoised_without_one_hot" in f}
     elif config.denoising_mode == "with_one_hot":
-    	pt_files = {int(f.split('_')[1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt') and "_DENOISED_ONEHOT" in f}
+    	pt_files = {int(f.split('_')[1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt') and "_denoised_with_one_hot" in f}
     print(pt_files)
     
     lines = [] 

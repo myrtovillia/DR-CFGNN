@@ -1,9 +1,9 @@
-DIG/benchmarks/xgraph/datasets
 DIG/benchmarks/xgraph/checkpoints
-DIG/benchmarks/xgraph/checkpoints_reconstruction_True
 DIG/benchmarks/xgraph/checkpoints_reconstruction_False
-DIG/benchmarks/xgraph/results
+DIG/benchmarks/xgraph/checkpoints_reconstruction_True
+DIG/benchmarks/xgraph/datasets
 DIG/benchmarks/xgraph/DR_CFGNN_images
+DIG/benchmarks/xgraph/results
 DIG/benchmarks/xgraph/result_jsons
 
 

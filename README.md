@@ -1,6 +1,6 @@
 
 
-**Note 1:** We explicitly state that our work was built on top of the DIG library and the survey paper https://arxiv.org/abs/2012.15445 by Yuan et al. The authors of the survey developed an open source library for GNN explainability, released as part of the DIG library. 
+**Note :** We explicitly state that our work was built on top of the DIG library and the survey paper https://arxiv.org/abs/2012.15445 by Yuan et al. The authors of the survey developed an open source library for GNN explainability, released as part of the DIG library. 
 
 'dig' from their github contains multiple folders. We kept only the relevant folder, xgraph, and modified some of its scripts in order to create more synthetic datasets and inject noise. 
 
@@ -20,10 +20,8 @@ Open a terminal in the `DIG` folder :
 1. The synthetic datasets and BBBP will be created automatically by running any of the codes below. 
 
 
-
 2. Train the models : 
 `python -m benchmarks.xgraph.train_gnns datasets=ba_2motifs`
-
 
 
 3. Train the reconstruction step  : 
@@ -32,11 +30,14 @@ or
 `python -m benchmarks.xgraph.reconstruction_process datasets=ba_2motifs one_hot_reconst=True`
 
 
+4. Train the factual explainer : 
+`python -m benchmarks.xgraph.subgraphx datasets=ba_2motifs explainers=subgraphx denoising_mode=None`
+or
+`python -m benchmarks.xgraph.subgraphx datasets=ba_2motifs explainers=subgraphx denoising_mode=without_one_hot`
+or
+`python -m benchmarks.xgraph.subgraphx datasets=ba_2motifs explainers=subgraphx denoising_mode=with_one_hot`
 
-4. Train the explainer : 
-`python -m benchmarks.xgraph.subgraphx datasets=ba_2motifs explainers=subgraphx`
-
-
+If denoising mode is not none, denoise the graph before running SubgraphX, using the reconstruction model trained either with one-hot embeddings or without them.
 
 
 **RUN DR-CFGNN FRAMEWORK**
