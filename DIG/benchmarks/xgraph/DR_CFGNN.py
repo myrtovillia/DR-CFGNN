@@ -156,7 +156,7 @@ def pipeline(config):
     	pt_files = {int(f.split('_')[1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt') and "_denoised_without_one_hot" in f}
     elif config.denoising_mode == "with_one_hot":
     	pt_files = {int(f.split('_')[1].split('.')[0]): f for f in os.listdir(explanation_saving_dir) if f.endswith('.pt') and "_denoised_with_one_hot" in f}
-    print(pt_files)
+
     
     lines = [] 
     all_preds = []
@@ -169,24 +169,32 @@ def pipeline(config):
     
     # ---FOLDERS TO SAVE THE RESULTS---
     if one_hot_reconst:
-    	base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN_images", f"{config.datasets.dataset_name}_max_nodes_{max_nodes}_thres_{threshold_add}_m_{top_m}_r_{top_r}_predefined_cf_class_{predefined_cf_class}")
+    	base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "RESULTS_dr_cfgnn_AND_random", f"{config.datasets.dataset_name}", f"denoised_{config.denoising_mode}_predefined_cf_class_{predefined_cf_class}_max_nodes_{max_nodes}_thres_{threshold_add}_m_{top_m}_r_{top_r}")
     else:
-    	base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "DR_CFGNN_images", f"{config.datasets.dataset_name}_max_nodes_{max_nodes}_thres_{threshold_add}_m_{top_m}_r_{top_r}")
-
+    	base_counterfactuals_dir = os.path.join(os.path.dirname(__file__),  "RESULTS_dr_cfgnn_AND_random", f"{config.datasets.dataset_name}", f"denoised_{config.denoising_mode}_predefined_cf_class_none_max_nodes_{max_nodes}_thres_{threshold_add}_m_{top_m}_r_{top_r}")
+    
+    
+    dataset_dir = os.path.join(os.path.dirname(__file__), "RESULTS_dr_cfgnn_AND_random", f"{config.datasets.dataset_name}")
+    
+    base_name = os.path.basename(base_counterfactuals_dir.rstrip(os.sep))
+    times_file = os.path.join(base_counterfactuals_dir, f"{base_name}.txt")
+    log_file = os.path.join(base_counterfactuals_dir, "time_limit_log.txt")
+    
     if config.dr_cfgnn.run_dr_cfgnn:
-    	dec_rec_folder = os.path.join(base_counterfactuals_dir, "DR_CFGNN") 
+    	dec_rec_folder = base_counterfactuals_dir
     	os.makedirs(dec_rec_folder, exist_ok=True)     
     	
     if config.dr_cfgnn.run_random_baseline:   
-    	naive_random_baseline = os.path.join(base_counterfactuals_dir, "naive_random_baseline")
+    	naive_random_baseline = os.path.join(dataset_dir, "naive_random_baseline")
     	os.makedirs(naive_random_baseline, exist_ok=True)
+    	random_naive_file = os.path.join(naive_random_baseline, "random_naive_file.txt")
     	    	    	
     
     # time variables   
     total_dec_time = 0.0
     total_rec_time = 0.0
     cf_first_dr = []
-    cf_first_random = []
+    cf_time_random = []
     same_pred_graph_ground_truth = 0
 
     for test_i in test_indices:
@@ -257,11 +265,13 @@ def pipeline(config):
 	    			max_deletes = 1	    		
 	    		 
 	    		time_limit = 60.0  
-	    		time_limit_2 = 10.0
+	    		time_limit_2 = 20.0
 	    		start_time = time.perf_counter()
 	    		while len(seen_deletes) < max_deletes:
 	    			if time.perf_counter() - start_time > time_limit:
 	    				print("Time limit reached for dr_cfgnn.")
+	    				with open(log_file, "a") as f: 
+	    					f.write(f"{test_i}_outer\n")
 	    				break
 	    				
 	    				
@@ -277,6 +287,7 @@ def pipeline(config):
 	    			edge_delete = tuple(random.sample(expl_edges, n))
 	    			edge_delete = frozenset(edge_delete)    		
 	    			if edge_delete in seen_deletes:
+	    				dec_time = dec_time + (time.perf_counter() - t0)
 	    				continue
 		    		G_full_dr=G_whole.copy()
 		    		if edge_delete:
@@ -318,13 +329,17 @@ def pipeline(config):
 	    				m = min(len(filtered_edges), np.random.choice(np.arange(0, top_m + 1), p=probs))
 	    				count_m = sum(1 for ea in seen_adds_for_delete[edge_delete] if len(ea) == m)	    	    						
 	    				if count_m == max_adds[m]:   #if no new edge_add for this m, it will skip the while but we need no continue with the cf search
+	    					rec_time = rec_time + ( time.perf_counter() - t1 )
 	    					continue	    						
 		    			flag = False
 		    			start_time_2 = time.perf_counter()		    			
 		    			while count_m < max_adds[m]:		    				
 		    				if time.perf_counter() - start_time_2 > time_limit_2:
 		    					flag = True
+		    					rec_time = rec_time + ( time.perf_counter() - t1 )
 		    					print("Time limit reached for dr_cfgnn, inner while.")
+		    					with open(log_file, "a") as f: 
+		    						f.write(f"{test_i}_inner\n")
 		    					break				    
 		    				edge_add = tuple(random.sample(filtered_edges, m))
 		    				edge_add  = frozenset(edge_add)
@@ -406,7 +421,9 @@ def pipeline(config):
 	    	# NAIVE random baseline	    	
 	    	if config.dr_cfgnn.run_random_baseline :	    	
 	    		time_limit = 60.0	
+	    		
 		    	start_time = time.perf_counter() 
+		    	end_time = None  ##
 		    			    	
 		    	nodes = list(G_whole.nodes())		    	
 	    		existing_edges = {frozenset(e) for e in G_whole.edges()}	    		
@@ -431,6 +448,7 @@ def pipeline(config):
     						if found_cf:
     							break
     						if time.perf_counter() - start_time > time_limit:
+    							end_time = time.perf_counter()  ##
     							print("Time limit reached for naive random baseline.")
     							found_cf = True
     							break
@@ -444,8 +462,8 @@ def pipeline(config):
     						pred_naive = model(pyg_naive).argmax(-1).item()
     						    					
     						if pred_naive != pred_graph:    							
-    							cf_time =  time.perf_counter() - start_time
-    							cf_first_random.append(cf_time)   									
+    							
+    							end_time = time.perf_counter()	##						
     							counterfactuals_naive.add(test_i)
     							
     							del_edges_str = "_".join([f"{a}-{b}" for a, b in del_edges]) if del_edges else ""
@@ -478,6 +496,9 @@ def pipeline(config):
     							plt.close()
     							found_cf = True
     							break
+    			if end_time is None:
+    				end_time = time.perf_counter()
+    			cf_time_random.append(end_time - start_time)
     							
     model_accuracy = accuracy_score(all_labels, all_preds)
     print(f'Model Accuracy: {model_accuracy:.14f}')
@@ -487,24 +508,25 @@ def pipeline(config):
 	    average_dec_time = total_dec_time / same_pred_graph_ground_truth	    
 	    average_rec_time = total_rec_time / same_pred_graph_ground_truth
 	    avg_first_dr = sum(cf_first_dr) / len(cf_first_dr)
-	    print("DR_CFGNN")
-	    print("Same predictions of subgraph explanation and original graph")
-	    print(f"{same_pred_graph_subgraph}/{same_pred_graph_subgraph + diff_pred_graph_subgraph }")
-	    print("")
-	    print(f"Number of counterfactuals : {len(counterfactuals_dr_cfgnn)}/{same_pred_graph_ground_truth}")
-	    print(" ")
-	    print(f"Average deconsturction time per graph: {average_dec_time:.4f}s")
-	    print(f"Average reconstruction time per graph: {average_rec_time:.4f}s")
-	    print(f"Average time to first counterfactual: {avg_first_dr:.4f}s")
-	    print(" ")
+	    
+	    with open(times_file, "a") as f:
+	    	f.write("DR_CFGNN\n")
+	    	f.write("Same predictions of subgraph explanation and original graph : ")
+	    	f.write(f"{same_pred_graph_subgraph}/{same_pred_graph_subgraph + diff_pred_graph_subgraph }\n")
+	    	f.write(f"Number of counterfactuals : {len(counterfactuals_dr_cfgnn)}/{same_pred_graph_ground_truth}\n")
+	    	f.write(f"Average deconstruction time per graph: {average_dec_time:.4f}s\n")
+	    	f.write(f"Average reconstruction time per graph: {average_rec_time:.4f}s\n")
+	    	f.write(f"Average time to first counterfactual: {avg_first_dr:.4f}s\n")
+	    	f.write("\n")
 	    	    
     if config.dr_cfgnn.run_random_baseline: 
-    	print("RANDOM BASELINE")
-    	avg_first_random = sum(cf_first_random) / len(cf_first_random)     	
-    	print(f"Number of counterfactuals : {len(counterfactuals_naive)}/{same_pred_graph_ground_truth}")
-    	print(" ")
-    	print(f"Average time to first counterfactual: {avg_first_random:.4f}s")
-    	print(" ")
+    	avg_random = sum(cf_time_random) / same_pred_graph_ground_truth	
+    	with open(random_naive_file, "a") as f:
+    		f.write("RANDOM BASELINE\n")
+    		f.write(f"Number of counterfactuals : {len(counterfactuals_naive)}/{same_pred_graph_ground_truth}\n")
+    		f.write(f"Average time (random baseline search): {avg_random:.4f}s\n")
+    		f.write("\n")
+
 
 
 if __name__ == '__main__':

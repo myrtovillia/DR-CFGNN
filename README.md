@@ -42,9 +42,10 @@ If denoising mode is not none, denoise the graph before running SubgraphX, using
 
 **RUN DR-CFGNN FRAMEWORK**
 
-`python -m benchmarks.xgraph.DR_CFGNN datasets=ba_2motifs one_hot_reconst=False`. 
+`python -m benchmarks.xgraph.DR_CFGNN datasets=ba_2motifs`. 
 
-This will generate a folder named `DR_CFGNN`, which contains subfolders titled with the dataset and the parameters. 
+Go to config.yaml file to choose your hyperparameters.
+This will generate a folder named `DR_CFGNN_images`, which contains subfolders titled with the dataset. 
 
 
 

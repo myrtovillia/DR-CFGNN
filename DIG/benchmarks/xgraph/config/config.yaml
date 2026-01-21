@@ -12,9 +12,9 @@ dr_cfgnn:
   threshold_add: 0.9
   predefined_cf_class: 1 
   run_dr_cfgnn: True
-  run_random_baseline: True
+  run_random_baseline: False
   a_del : 0.5
-  a_add : 0.8 
+  a_add : 0.5 
   center_del : 1
   center_add : 1
 one_hot_reconst: False
