@@ -46,7 +46,7 @@ cmd = [
     "python", "-m", "benchmarks.xgraph.DR_CFGNN",
     f"datasets={dataset_name}",
     "denoising_mode=none",
-    "one_hot_reconst=False",
+    "one_hot_reconst=False"
 ]
 print("Running:", " ".join(cmd))
 subprocess.run(cmd, check=False)
@@ -62,7 +62,7 @@ for cf_classes in predefined_classes:
         f"datasets={dataset_name}",
         "denoising_mode=none",
         "one_hot_reconst=True",
-        f"dr_cfgnn.predefined_cf_class={cf_classes}",
+        f"dr_cfgnn.predefined_cf_class={cf_classes}"
     ]
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, check=False)
@@ -78,7 +78,7 @@ cmd = [
     "python", "-m", "benchmarks.xgraph.DR_CFGNN",
     f"datasets={dataset_name}",
     "denoising_mode=without_one_hot",
-    "one_hot_reconst=False",
+    "one_hot_reconst=False"
 ]
 print("Running:", " ".join(cmd))
 subprocess.run(cmd, check=False)
@@ -95,7 +95,7 @@ for cf_classes in predefined_classes:
         f"datasets={dataset_name}",
         "denoising_mode=without_one_hot",
         "one_hot_reconst=True",
-        f"dr_cfgnn.predefined_cf_class={cf_classes}",
+        f"dr_cfgnn.predefined_cf_class={cf_classes}"
     ]
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, check=False)
