@@ -5,18 +5,18 @@ defaults:
 random_seed: 0
 device_id: 0
 record_filename: none
-dr_cfgnn:
-  max_nodes: 6
-  top_m: 3
+dr_cfgnn:  
   top_r: 2
+  a_del : 0.5
+  center_del : 1  
+  top_m: 5
+  a_add : 0.01 
+  center_add : 3    
+  max_nodes: 6
   threshold_add: 0.9
   predefined_cf_class: 1 
   run_dr_cfgnn: True
   run_random_baseline: False
-  a_del : 0.5
-  a_add : 0.05 
-  center_del : 1
-  center_add : 2
 one_hot_reconst: False
 denoising_mode: none   
 
