@@ -54,7 +54,17 @@ IS_FRESH = False
 import dig
 print("Using dig from: ", dig.__file__)
 from collections import defaultdict
-from math import comb
+#from math import comb
+
+def comb(n, k):
+	if k < 0 or k > n: return 0
+	if k == 0 or k == n: return 1
+	if k > n // 2: k = n - k
+	
+	numerator = 1
+	for i in range(k):
+		numerator = numerator * (n - i) // (i + 1)
+	return numerator
 
 def find_closest_node_result(results, max_nodes):
     results = sorted(results, key=lambda x: len(x['coalition']))
@@ -372,7 +382,7 @@ def pipeline(config):
 		    					time_flag=False
 		    				counterfactuals_dr_cfgnn.add(test_i)			    				
 
-			    			deleted_edges_str = "_".join([f"{a} -{b}" for a, b in edge_delete]) if edge_delete else ""
+			    			deleted_edges_str = "_".join([f"{a}-{b}" for a, b in edge_delete]) if edge_delete else ""
 			    			added_edges_str   = "_".join([f"{a}-{b}" for a, b in edge_add]) if edge_add else ""
 			    			save_name = f"{test_i}_added_({added_edges_str})_del_({deleted_edges_str})_pred_orig_{pred_graph}_pred_cf_{pred_cf}.pt"
 			    			save_path = os.path.join(dec_rec_folder, save_name)
