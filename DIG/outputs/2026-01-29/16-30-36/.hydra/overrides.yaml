@@ -1,0 +1,6 @@
+- datasets=bbbp
+- dr_cfgnn.run_dr_cfgnn=False
+- dr_cfgnn.run_random_baseline=True
+- datasets.dataset_root=/home/myrto/Desktop/codes/3_2026/DIG/benchmarks/xgraph/datasets
+- models.gnn_saving_dir=/home/myrto/Desktop/codes/3_2026/DIG/benchmarks/xgraph/checkpoints
+- explainers.explanation_result_dir=/home/myrto/Desktop/codes/3_2026/DIG/benchmarks/xgraph/results
