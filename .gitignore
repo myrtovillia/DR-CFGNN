@@ -7,12 +7,4 @@ DIG/benchmarks/xgraph/RESULTS_dr_cfgnn_AND_random
 
 
 
-DIG_ROBUSTNESS/benchmarks/xgraph/cfexplainer_plots
-DIG_ROBUSTNESS/benchmarks/xgraph/checkpoints
-DIG_ROBUSTNESS/benchmarks/xgraph/checkpoints_lp
-DIG_ROBUSTNESS/benchmarks/xgraph/checkpoints_taxonomy
-DIG_ROBUSTNESS/benchmarks/xgraph/datasets
-DIG_ROBUSTNESS/benchmarks/xgraph/MELD
-DIG_ROBUSTNESS/benchmarks/xgraph/results
-DIG_ROBUSTNESS/benchmarks/xgraph/results_taxonomy
 
