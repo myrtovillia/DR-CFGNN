@@ -7,6 +7,10 @@ import numpy as np
 import os.path as osp
 from torch_geometric.data import Data, InMemoryDataset
 import traceback
+import random
+from torch_geometric.utils import to_undirected
+from torch_geometric.utils import to_networkx, from_networkx
+
 
 def undirected_graph(data):
     """
@@ -74,6 +78,45 @@ def read_sentigraph_data(folder: str, prefix: str):
     data, slices = split(data, batch)
 
     return data, slices, supplement
+
+
+
+
+
+def add_total_noise(graph, node_noise_ratio=0.04, edge_noise_ratio=0.04):
+
+    num_nodes = graph.x.size(0)
+    noise_std=0.04 * graph.x.std()
+    num_noisy_nodes = max(1, int(node_noise_ratio * num_nodes))
+    noisy_indices = random.sample(range(num_nodes), num_noisy_nodes)
+    noise = torch.randn(num_noisy_nodes, graph.x.size(1)) * noise_std
+    graph.x[noisy_indices] += noise
+
+
+    G = to_networkx(graph, to_undirected=True)
+    num_edges_to_modify = max(1, int(edge_noise_ratio * G.number_of_edges()))
+    action = random.choice(["add", "remove"])
+
+
+    if action == "remove":
+        remove_edges = random.sample(list(G.edges()), num_edges_to_modify)
+        G.remove_edges_from(remove_edges)
+    else:  
+        added_edges = []
+        while len(added_edges) < num_edges_to_modify:
+            u, v = random.randint(0, num_nodes-1), random.randint(0, num_nodes-1)
+            if u != v and not G.has_edge(u, v):
+                G.add_edge(u, v)
+                added_edges.append((u, v))
+
+    graph_noisy = from_networkx(G)
+    graph_noisy.x = graph.x.float()  
+    graph_noisy.y = graph.y
+
+    return graph_noisy
+
+
+
 
 
 class SentiGraphDataset(InMemoryDataset):
@@ -150,6 +193,28 @@ class SentiGraphDataset(InMemoryDataset):
             data_list = [self.get(idx) for idx in range(len(self))]
             data_list = [self.pre_transform(data) for data in data_list]
             self.data, self.slices = self.collate(data_list)
+        
+        
+        '''
+        if "split_indices" in self.supplement:
+        	split_indices = self.supplement["split_indices"]
+        	test_indices = (split_indices == 2).nonzero(as_tuple=True)[0].tolist()
+        	for idx in test_indices:
+        		
+        	
+        		g = data_list[idx]
+        		num_nodes = g.x.size(0)
+        		num_edges = g.edge_index.size(1) // 2
+        		max_edges = num_nodes * (num_nodes - 1) // 2
+        		if num_edges >= max_edges:
+        			continue
+
+        	
+        		
+        		data_list[idx] = add_total_noise(data_list[idx])
+
+        	self.data, self.slices = self.collate(data_list)
+        '''
         torch.save((self.data, self.slices, self.supplement), self.processed_paths[0])
 
 

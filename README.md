@@ -45,8 +45,12 @@ If denoising mode is not none, denoise the graph before running SubgraphX, using
 `python -m benchmarks.xgraph.DR_CFGNN datasets=ba_2motifs`. 
 
 Go to config.yaml file to choose your hyperparameters.
-This will generate a folder named `DR_CFGNN_images`, which contains subfolders titled with the dataset. 
+This will generate a folder named `RESULTS_dr_cfgnn_AND_random`, which contains subfolders titled with the dataset. 
+or 
 
+To run all the configurations per dataset (with or without denoising mode and with or without target class)
+
+`python -m benchmarks.xgraph.multiple_runs_DR_CFGNN datasets=ba_2motifs`
 
 
 
@@ -55,20 +59,24 @@ This will generate a folder named `DR_CFGNN_images`, which contains subfolders t
 -----------------------------------------------------------------------------------------------------
 **Experiments for Robustness**: 
  
+Go to `dig/xgraph/dataset` and uncomment the noise injection code in `syn_dataset.py` and `nlp_dataset.py`. We inject noise only into the test graphs. 
 
+The folders `checkpoints`, `checkpoints_reconstruction_False`, and `checkpoints_reconstruction_True` remain unchanged. 
+
+Then, rerun the factual explainer. A new `datasets` (automatically) and `results` folder will be created, containing the noisy input graphs and its factual explanations, respectively. 
+
+Finally, rerun `DR_CFGNN`. This will generate a new `RESULTS_dr_cfgnn_AND_random` folder with results on the noised test graphs.
+
+
+
+
+old
 Go to `DIG_ROBUSTNESS/dig/xgraph/dataset/syn_dataset.py` and `nlp_dataset.py` and add noise in the test graphs (done it).
 
 Delete from DIG_ROBUSTNESS
---cfexplainer_plots (new plots will produced), 
 --datasets (new datasets will produced), 
 --MELD & results (new plots will produced)
 and rerun all the above process.
-
-To produce the robustness metrics for CFExplainers variants, `robustness_cfexplainer.py` was used. 
-For the robustness metrics in our method, `robustness_MELD.py` script was used. 
-
-
-
 
 
                   
