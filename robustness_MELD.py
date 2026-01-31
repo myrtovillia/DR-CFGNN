@@ -1,6 +1,16 @@
-import os
+import os, re
 from collections import defaultdict
 import math
+import sys
+
+
+dataset_name = None
+for arg in sys.argv[1:]:
+    if arg.startswith("datasets="):
+        dataset_name = arg.split("=", 1)[1]
+base_folder = os.path.join("RESULTS_dr_cfgnn_AND_random", dataset_name)
+
+
 
 config = {
     "dataset_name": "ba_2motifs",
