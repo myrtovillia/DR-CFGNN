@@ -226,6 +226,7 @@ def create_ba_4motifs(data_list, motif_nodes=[20, 21, 22, 23, 24], seed=42):
 
 def add_total_noise(graph, node_noise_ratio=0.04, edge_noise_ratio=0.04, noise_std=0.02):
 
+    
     num_nodes = graph.x.size(0)
     num_noisy_nodes = max(1, int(node_noise_ratio * num_nodes))
     noisy_indices = random.sample(range(num_nodes), num_noisy_nodes)
@@ -233,22 +234,22 @@ def add_total_noise(graph, node_noise_ratio=0.04, edge_noise_ratio=0.04, noise_s
     graph.x[noisy_indices] += noise
 
 
+    print(graph.edge_index)
     G = to_networkx(graph, to_undirected=True)
     num_edges_to_modify = max(1, int(edge_noise_ratio * G.number_of_edges()))
     action = random.choice(["add", "remove"])
+    print(action)
     
     if action == "remove":
-        remove_edges = random.sample(list(G.edges()), num_edges_to_modify)
-        G.remove_edges_from(remove_edges)
+        remove_edges = random.sample(list(G.edges()), num_edges_to_modify)    
+        G.remove_edges_from(remove_edges)       
     else:  
         added_edges = []
         while len(added_edges) < num_edges_to_modify:
             u, v = random.randint(0, num_nodes-1), random.randint(0, num_nodes-1)
             if u != v and not G.has_edge(u, v):
                 G.add_edge(u, v)
-                added_edges.append((u, v))
-
-
+                added_edges.append((u, v))       
     graph_noisy = from_networkx(G)
     graph_noisy.x = graph.x.float()  
     graph_noisy.y = graph.y
@@ -334,12 +335,12 @@ class SynGraphDataset(InMemoryDataset):
             	
             	
             	
-            '''	
+           	
             test_indices = [256, 698, 495, 640, 945, 638, 877, 479, 995, 372, 135, 773, 383, 859, 125, 807, 633, 584, 550, 660, 305, 575, 423, 772, 60, 838, 715, 649, 348, 75, 865, 438, 870, 665, 977, 900, 471, 679, 436, 212, 103, 963, 40, 652, 412, 164, 604, 795, 20, 94, 117, 732, 742, 631, 975, 109, 895, 958, 52, 720, 42, 973, 410, 866, 262, 442, 776, 592, 142, 641, 911, 192, 979, 317, 658, 524, 462, 964, 737, 218, 403, 147, 997, 924, 141, 82, 308, 581, 565, 835, 976, 644, 177, 709, 890, 863, 914, 887, 538, 499]  
             for idx in test_indices:
 
             	data_list[idx] = add_total_noise(data_list[idx])
-            '''
+            
 
 
 

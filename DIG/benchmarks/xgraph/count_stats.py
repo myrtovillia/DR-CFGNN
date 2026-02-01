@@ -305,11 +305,11 @@ def pipeline(config):
     		model_accuracy = accuracy_score(all_labels, all_preds)
     			
     		print("\n=== RANDOM")
-    		print(len(numbers))
-    		print(avg_exp_size)
+    		print(len(numbers), end=", ")
+    		print(avg_exp_size, end=", ")
+    		print(avg_comb_exp_size, end=", ")
     		print(avg_motif)
-    		print(avg_comb_exp_size)
-    		print(" ")
+    		
 
 
 if __name__ == '__main__':

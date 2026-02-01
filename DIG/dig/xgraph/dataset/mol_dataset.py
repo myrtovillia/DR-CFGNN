@@ -13,6 +13,9 @@ except ImportError:
 import os.path as osp
 import zipfile
 import gzip
+import random
+from torch_geometric.utils import to_undirected
+from torch_geometric.utils import to_networkx, from_networkx
 
 x_map = {
     'atomic_num':
@@ -89,6 +92,58 @@ def extract_zip(path, folder, log=True):
     maybe_log(path, log)
     with zipfile.ZipFile(path, 'r') as f:
         f.extractall(folder)
+
+
+
+
+def add_total_noise(graph, edge_noise_ratio=0.04):
+    num_nodes = graph.x.size(0)
+
+    # (1) κράτα το παλιό edge_attr (αν υπάρχει) και ένα lookup για να το ξαναβάλεις
+    old_edge_attr = graph.edge_attr if hasattr(graph, "edge_attr") else None
+    if old_edge_attr is not None:
+        old_pairs = list(zip(graph.edge_index[0].tolist(), graph.edge_index[1].tolist()))
+        old_lookup = {p: i for i, p in enumerate(old_pairs)}
+
+    G = to_networkx(graph, to_undirected=True)
+    num_edges_to_modify = max(1, int(edge_noise_ratio * G.number_of_edges()))
+    action = random.choice(["add", "remove"])
+
+    if action == "remove":
+        remove_edges = random.sample(list(G.edges()), min(num_edges_to_modify, G.number_of_edges()))
+        G.remove_edges_from(remove_edges)
+    else:
+        added_edges = []
+        while len(added_edges) < num_edges_to_modify:
+            u, v = random.randint(0, num_nodes - 1), random.randint(0, num_nodes - 1)
+            if u != v and not G.has_edge(u, v):
+                G.add_edge(u, v)
+                added_edges.append((u, v))
+
+    graph_noisy = from_networkx(G)
+
+    # κράτα features/label/smiles όπως είναι
+    graph_noisy.x = graph.x
+    graph_noisy.y = graph.y
+    if hasattr(graph, "smiles"):
+        graph_noisy.smiles = graph.smiles
+
+    # (2) ξαναφτιάξε edge_attr με σωστό μήκος ώστε να μη σκάει το collate
+    if old_edge_attr is not None:
+        new_pairs = list(zip(graph_noisy.edge_index[0].tolist(), graph_noisy.edge_index[1].tolist()))
+        default = torch.zeros((old_edge_attr.size(1),), dtype=old_edge_attr.dtype)
+        new_attrs = []
+        for p in new_pairs:
+            if p in old_lookup:
+                new_attrs.append(old_edge_attr[old_lookup[p]])
+            else:
+                new_attrs.append(default)
+        graph_noisy.edge_attr = torch.stack(new_attrs, dim=0)
+
+    return graph_noisy
+
+
+
 
 
 class MoleculeDataset(InMemoryDataset):
@@ -304,6 +359,15 @@ class MoleculeDataset(InMemoryDataset):
                     data = self.pre_transform(data)
 
                 data_list.append(data)
+                
+                
+        test_indices = [894, 344, 1856, 875, 810, 960, 209, 335, 819, 664, 1924, 1718, 898, 1553, 1094, 744, 1030, 617, 1217, 1620, 1072, 411, 1436, 2025, 902, 1005, 1121, 1290, 879, 1300, 720, 863, 883, 904, 48, 1649, 1163, 922, 610, 1709, 1460, 1157, 454, 1491, 515, 545, 173, 1476, 1234, 761, 2008, 957, 1871, 68, 701, 806, 1786, 1727, 1112, 1258, 1319, 328, 1860, 1342, 1673, 1601, 1844, 436, 718, 689, 1499, 1069, 1672, 1158, 322, 1891, 168, 192, 95, 1594, 634, 451, 166, 501, 353, 1766, 52, 746, 1220, 1832, 570, 2035, 558, 317, 455, 849, 1566, 234, 777, 40, 792, 585, 66, 1917, 661, 775, 774, 1275, 1088, 1997, 1046, 1630, 699, 1478, 771, 124, 385, 1883, 384, 972, 1992, 778, 1348, 237, 821, 362, 1129, 1017, 1861, 1643, 500, 760, 2003, 1754, 259, 1003, 1032, 961, 1317, 1922, 874, 665, 102, 1738, 1685, 1968, 525, 1977, 928, 1058, 1188, 444, 1612, 1927, 1299, 1405, 706, 672, 293, 627, 707, 467, 1505, 1805, 54, 862, 1329, 230, 574, 598, 1753, 1165, 1585, 1849, 1427, 1468, 1449, 907, 1067, 175, 890, 1607, 1357, 1086, 788, 1118, 429, 131, 1965, 931, 713, 1496, 1443, 1543, 470, 437, 546, 1170, 1906, 1742, 1345, 123, 2038, 1040, 507]
+        
+        for idx in test_indices:
+        	data_list[idx] = add_total_noise(data_list[idx])
+                	
+                
+                
         torch.save(self.collate(data_list), self.processed_paths[0])
 
     def __repr__(self):

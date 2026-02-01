@@ -2,9 +2,11 @@ DIG/benchmarks/xgraph/checkpoints
 DIG/benchmarks/xgraph/checkpoints_reconstruction_False
 DIG/benchmarks/xgraph/checkpoints_reconstruction_True
 DIG/benchmarks/xgraph/datasets
+DIG/benchmarks/xgraph/datasets_ORIGINAL
 DIG/benchmarks/xgraph/results
+DIG/benchmarks/xgraph/results_ORIGINAL
 DIG/benchmarks/xgraph/RESULTS_dr_cfgnn_AND_random
-
+DIG/benchmarks/xgraph/RESULTS_dr_cfgnn_AND_random_ORIGINAL
 
 
 
