@@ -58,10 +58,10 @@ def pipeline(config):
  
     script_dir = os.path.dirname(os.path.abspath(__file__))
     base_folder = os.path.join(script_dir, "RESULTS_dr_cfgnn_AND_random", config.datasets.dataset_name)
+ 
 
 
-    
-    
+
     def metrics(fname, test_index, best_explanation_size, best_motif_score, best_cf_edges ):   
     	added_edge = None
     	del_edge = None
@@ -120,28 +120,56 @@ def pipeline(config):
     				best_motif_score[test_index] = score
     				
     	return best_explanation_size, best_motif_score, best_cf_edges
-    
-    
-    def exp_size_combinations(test_indices, dataset, device, model, best_cf_edges): 	   	
+ 
+ 
+ 
+
+    def exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path): 	   	
     	scores = []
     	all_preds = []
     	all_labels = []
+    	drop_scores = []
     	for test_i in test_indices:
-    		
+    		if test_i not in numbers:
+    			continue
+    			
     		data = dataset[test_i]
     		data = data.to(device)  
     		data.edge_index = add_remaining_self_loops(data.edge_index, num_nodes=data.num_nodes)[0]    		
-    		pred_graph = model(data).argmax(-1).item()
+    		with torch.no_grad():
+    			out_orig = model(data)
+    			pred_graph = out_orig.argmax(-1).item()
+    			probs_orig = torch.softmax(out_orig, dim=-1)   			
+    			prob_orig = probs_orig[0, pred_graph].item()
+    		sum_drop=0
+    		cfs=0
+    		for fname in os.listdir(folder_path):
+    			if fname.endswith(".pt"):
+    				if int(fname.split("_")[0]) != test_i:
+    					continue 
+    				pt_path = os.path.join(folder_path, fname)
+    				cf_data = torch.load(pt_path, map_location=device)
+    				cf_data = cf_data.to(device)    				
+    				with torch.no_grad():
+    					out_cf = model(cf_data)
+    					probs_cf = torch.softmax(out_cf, dim=-1)
+    					prob_cf = probs_cf[0, pred_graph].item()
+    				drop = prob_orig - prob_cf
+    				cfs=cfs+1
+    				sum_drop=sum_drop+drop
+    		avg_drop_graph = sum_drop / cfs
+    		drop_scores.append(avg_drop_graph)
+
+
     		all_preds.append(pred_graph)
     		all_labels.append(data.y.item()) 
     		G_whole = to_networkx(data, to_undirected=True)
-    		G_whole.remove_edges_from(nx.selfloop_edges(G_whole)) 
-    		if test_i not in best_cf_edges:
-    			continue
-    		
+    		G_whole.remove_edges_from(nx.selfloop_edges(G_whole))
+
+
     		best_score_for_graph = 0.0    		
     		cf_scores = []
-    		for del_list, add_list in best_cf_edges[test_i]:   # each counterfactual   			
+    		for del_list, add_list in best_cf_edges[test_i]:   # each counterfactual   			ε
     			same = 0
     			total = 0    			    	
     			edits = [("DEL", e) for e in del_list] + [("ADD", e) for e in add_list]      #1 counterfactual 				   			
@@ -167,16 +195,25 @@ def pipeline(config):
     			cf_scores.append((same / total) if total > 0 else 1.0)   					
     		best_score_for_graph = sum(cf_scores)/len(cf_scores) if cf_scores else 0.0
     		scores.append(best_score_for_graph)
-    	return scores, all_preds, all_labels
-    							
-    				
-   
+    		
+    		
+    	print(len(numbers))
+    	print(len(drop_scores))
+    	print(len(best_cf_edges))
+    	avg_drop_all = (sum(drop_scores) / len(drop_scores)) if drop_scores else 0.0
+				
+    	return scores, all_preds, all_labels, avg_drop_all
+   							
+
 
     results = {}
     motif_nodes = {20, 21, 22, 23, 24}
     subfolders = []
     for name in os.listdir(base_folder):
     	subfolders.append(name)
+    print(subfolders)
+
+
    
    
     def parse_predefined_cf_class(name):
@@ -188,6 +225,8 @@ def pipeline(config):
     	s2 = name[i + len(key2):].split("_", 1)[0]
     	return s1,s2
     	
+    	
+    	
     for sub in subfolders:
     	print("------------------------------START----------------------------------------") 
     	folder_path = os.path.join(base_folder, sub)
@@ -197,18 +236,24 @@ def pipeline(config):
     	arguments = parse_predefined_cf_class(sub)
     	den, OH = parse_predefined_cf_class(sub)
     	print(arguments)
-
-    	# TIMES
+    	target_cl =sub.split("cf_class_")[1].split("_")[0]
+    	if target_cl != "none":
+    		target_cl =int(sub.split("cf_class_")[1].split("_")[0])
+    	
+    	
+    	
+    	# ----------------------------------TIMES
     	txt_path = os.path.join(folder_path, f"{sub}.txt")
     	if os.path.exists(txt_path):
     		with open(txt_path, "r") as f:
     			print(f.read())
+    			
    			
-    	# SIZE OF THE FIRST EXPLANATION
+    	# ----------------------------------SIZE OF THE FIRST EXPLANATION
     	first_edges_path = os.path.join(folder_path, "first_cf_edges.txt")
     	first_exp_size = []
     	if os.path.exists(first_edges_path):
-    		with open(first_edges_path, "r") as f:
+    		with open(first_edges_path, "r") as f:   			
     			for line in f:
     				parts = line.split("\t")
     				del_part = None
@@ -225,15 +270,14 @@ def pipeline(config):
     					a,b = e
     					return (a,b) if a <= b else (b,a)
     				del_edges = {canon(e) for e in del_edges}
-    				add_edges = {canon(e) for e in add_edges}
+    				add_edges = {canon(e) for e in add_edges}    				
     				explanation_size = len(del_edges ^ add_edges)
     				first_exp_size.append(explanation_size)
     			avg_first_exp = round(sum(first_exp_size)/len(first_exp_size), 2)
    			
-    	target_cl =sub.split("cf_class_")[1].split("_")[0]
-    	if target_cl != "none":
-    		target_cl =int(sub.split("cf_class_")[1].split("_")[0])
     		
+    	
+    	
     	best_explanation_size, best_motif_score, best_cf_edges = {}, {}, {} 
     	numbers = set()
     	for fname in os.listdir(folder_path):
@@ -247,27 +291,28 @@ def pipeline(config):
     			if target_cl != "none" and cf_class != target_cl:
     				continue
     			numbers.add(test_index)
+    			
     			best_explanation_size, best_motif_score, best_cf_edges = metrics(fname, test_index, best_explanation_size, best_motif_score, best_cf_edges)
-
+    	print(len(numbers))		
+    	
     	avg_exp_size = round(sum(best_explanation_size.values()) / len(best_explanation_size) if best_explanation_size else 0.0, 2)
     	avg_motif = None
     	if config.datasets.dataset_name.startswith("ba"):
     		avg_motif = round(sum(best_motif_score.values()) / len(best_motif_score) if best_motif_score else 0.0, 2)
     		
 
-    	scores, all_preds, all_labels = exp_size_combinations(test_indices, dataset, device, model, best_cf_edges)
+    	scores, all_preds, all_labels, avg_drop_graph = exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path)
     	avg_comb_exp_size = round(sum(scores)/len(scores) if scores else 0.0, 2)
     	model_accuracy = accuracy_score(all_labels, all_preds)
     	print(f'Model Accuracy: {model_accuracy:.14f}')
     	print("------------------------------END----------------------------------------")
     	print(" ")
     	print(" ")				
-    	results[arguments] = [ len(numbers), avg_first_exp, avg_exp_size, avg_comb_exp_size, avg_motif]
+    	results[arguments] = [ len(numbers), avg_first_exp, avg_exp_size, avg_comb_exp_size, avg_motif, avg_drop_graph]
 	
     for k, v in sorted(results.items()):
-    	print(f"{k} : {v[0]}, ({v[1]}/{v[2]}/{v[3]}), {v[4]}")
-    
-    		
+    	print(f"{k} : {v[0]}, ({v[1]}/{v[2]}/{v[3]}), {v[4]}, {v[5]}")
+   		
     unique_tests_per_den = defaultdict(set)
     for sub in subfolders:
     	if sub == "naive_random_baseline":
@@ -275,15 +320,26 @@ def pipeline(config):
     	den, OH = parse_predefined_cf_class(sub)
     	if OH == "none":
     		continue
+    		
+    	target_cl =int(sub.split("cf_class_")[1].split("_")[0])
+
     	folder_path = os.path.join(base_folder, sub)
     	for fname in os.listdir(folder_path):
     		if fname.endswith(".png"):
+    			
     			test_index = int(fname.split("_")[0])
-    			unique_tests_per_den[den].add(test_index)
+    			cf_class = int(fname[:-4].split("_")[-1])
+    			if target_cl==cf_class:
+    			
+    				unique_tests_per_den[den].add(test_index)
     print("\n=== Unique test ids grouped by same den")
     for den in unique_tests_per_den.keys():
     	print(f"den={den}: {len(unique_tests_per_den[den])}")
     print(" ")	
+    
+    
+    
+    
     # RANDOM 
     for sub in subfolders:
     	folder_path = os.path.join(base_folder, sub)
@@ -300,7 +356,7 @@ def pipeline(config):
     		avg_motif = None
     		if config.datasets.dataset_name.startswith("ba"):
     			avg_motif = round(sum(best_motif_score.values()) / len(best_motif_score) if best_motif_score else 0.0, 2)
-    		scores, all_preds, all_labels = exp_size_combinations(test_indices, dataset, device, model, best_cf_edges)
+    		scores, all_preds, all_labels, avg_drop_graph = exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path)
     		avg_comb_exp_size = round(sum(scores)/len(scores) if scores else 0.0,2)
     		model_accuracy = accuracy_score(all_labels, all_preds)
     			
@@ -309,9 +365,8 @@ def pipeline(config):
     		print(avg_exp_size, end=", ")
     		print(avg_comb_exp_size, end=", ")
     		print(avg_motif)
-    		
-
-
+    		print(avg_drop_graph)
+    
 if __name__ == '__main__':
     import sys
     sys.argv.append(f"datasets.dataset_root={os.path.join(os.path.dirname(__file__), 'datasets')}")

@@ -208,7 +208,7 @@ def pipeline(config):
     same_pred_graph_ground_truth = 0
 
     for test_i in test_indices:
-    	print(test_i) 	   
+    		   
     	data = dataset[test_i]    	
     	data = data.to(device)  #ba_2motifs, ba_2motifs_3class, sst2, twitter, sst5 contain (0-1) and (1-0) etc
     	data.edge_index = add_remaining_self_loops(data.edge_index, num_nodes=data.num_nodes)[0]   
@@ -219,6 +219,10 @@ def pipeline(config):
     	G_whole.remove_edges_from(nx.selfloop_edges(G_whole)) 
 
     	if data.y.item()==pred_graph :
+    		if one_hot_reconst:
+    			if pred_graph==predefined_cf_class:
+    				continue
+    		print(test_i) 
     		same_pred_graph_ground_truth += 1
 
     		# plots	
@@ -274,7 +278,7 @@ def pipeline(config):
 	    		if pred_graph != pred_subgraph:
 	    			max_deletes = 1	    		
 	    		 
-	    		time_limit = 60.0  
+	    		time_limit = 60  
 	    		time_limit_2 = 20.0
 	    		start_time = time.perf_counter()
 	    		while len(seen_deletes) < max_deletes:
@@ -423,6 +427,8 @@ def pipeline(config):
 		    				img_path = save_path.replace('.pt', '.png')
 		    				plt.savefig(img_path, bbox_inches='tight')
 		    				plt.close()
+		    				
+		    				
 
     			total_dec_time = total_dec_time + dec_time
     			total_rec_time = total_rec_time + rec_time
@@ -430,7 +436,7 @@ def pipeline(config):
 
 	    	# NAIVE random baseline	    	
 	    	if config.dr_cfgnn.run_random_baseline :	    	
-	    		time_limit = 60.0	
+	    		time_limit = 100.0	
 	    		
 		    	start_time = time.perf_counter() 
 		    	end_time = None  ##

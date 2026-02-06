@@ -93,11 +93,11 @@ def add_total_noise(graph, node_noise_ratio=0.04, edge_noise_ratio=0.04):
     graph.x[noisy_indices] += noise
 
 
+
     G = to_networkx(graph, to_undirected=True)
     num_edges_to_modify = max(1, int(edge_noise_ratio * G.number_of_edges()))
+    print(num_edges_to_modify)
     action = random.choice(["add", "remove"])
-
-
     if action == "remove":
         remove_edges = random.sample(list(G.edges()), num_edges_to_modify)
         G.remove_edges_from(remove_edges)
@@ -195,7 +195,7 @@ class SentiGraphDataset(InMemoryDataset):
             self.data, self.slices = self.collate(data_list)
         
         
-        '''
+        #''' uncomment this if you want to add noise
         if "split_indices" in self.supplement:
         	split_indices = self.supplement["split_indices"]
         	test_indices = (split_indices == 2).nonzero(as_tuple=True)[0].tolist()
@@ -214,7 +214,7 @@ class SentiGraphDataset(InMemoryDataset):
         		data_list[idx] = add_total_noise(data_list[idx])
 
         	self.data, self.slices = self.collate(data_list)
-        '''
+        #'''
         torch.save((self.data, self.slices, self.supplement), self.processed_paths[0])
 
 
