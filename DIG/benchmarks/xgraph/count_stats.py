@@ -62,6 +62,9 @@ def pipeline(config):
 
 
 
+
+
+
     def metrics(fname, test_index, best_explanation_size, best_motif_score, best_cf_edges ):   
     	added_edge = None
     	del_edge = None
@@ -88,8 +91,6 @@ def pipeline(config):
     	del_list = [e for e in del_list if e not in common]
     	add_list = [e for e in add_list if e not in common]
     	candidate = [del_list, add_list] 
-
-
     	# EXPLANATION SIZE
     	explanation_size = len(all_edges)   	
     	if test_index not in best_explanation_size:
@@ -101,9 +102,7 @@ def pipeline(config):
     			best_explanation_size[test_index] = explanation_size
     			best_cf_edges[test_index] = [candidate]
     		elif explanation_size == current_best_size:
-            			best_cf_edges[test_index].append(candidate)
-            			
-    	
+            			best_cf_edges[test_index].append(candidate)     			    	    	
     	# MOTIF PROXIMITY
     	if config.datasets.dataset_name.startswith("ba"):
     		score = 0
@@ -112,27 +111,44 @@ def pipeline(config):
     			a, b = map(int, parts)
     			if a in motif_nodes or b in motif_nodes:
     				score += 1
-    		score=score/len(all_edges) if all_edges else 0
-    		if test_index not in best_motif_score:
-    			best_motif_score[test_index] = score
-    		else:
-    			if score > best_motif_score[test_index]:
-    				best_motif_score[test_index] = score
-    				
-    	return best_explanation_size, best_motif_score, best_cf_edges
+    		score=score/len(all_edges)  # for each cf
+    	else:
+    		factual_nodes = set()
+    		for e in del_list:
+    			u, v = map(int, e.split("-"))   	
+    			factual_nodes.add(u); factual_nodes.add(v)
+    		score = 0
+    		for e in add_list:
+    			u, v = map(int, e.split("-"))
+    			if u in factual_nodes or v in factual_nodes:
+    				score += 1
+    		score = score / len(add_list) if add_list else None  # for each cf
+    	if score is not None:		
+	    	if test_index not in best_motif_score:
+	    			best_motif_score[test_index] = score
+	    	else:
+	    			if score > best_motif_score[test_index]:
+	    				best_motif_score[test_index] = score 	    		 				
+    	return best_explanation_size, best_motif_score, best_cf_edges 
+ 
+ 
+ 
  
  
  
 
-    def exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path): 	   	
-    	scores = []
-    	all_preds = []
-    	all_labels = []
-    	drop_scores = []
+    def exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path, target_cl): 	   	
+    	scores = []   
+    	drop_scores_per_graph = []
+    	
+    	drop_per_test = {}
+    	comb_per_test = {}
+    	
     	for test_i in test_indices:
-    		if test_i not in numbers:
+    		if test_i not in numbers: # In OH there is a possibility to exist cfs with different cf predictions. we restrict it below.
     			continue
     			
+    		# ------------------------------------------------------------------------------------- Fidelity
     		data = dataset[test_i]
     		data = data.to(device)  
     		data.edge_index = add_remaining_self_loops(data.edge_index, num_nodes=data.num_nodes)[0]    		
@@ -147,6 +163,9 @@ def pipeline(config):
     			if fname.endswith(".pt"):
     				if int(fname.split("_")[0]) != test_i:
     					continue 
+    				cf_class = int(fname[:-3].split("_")[-1])
+    				if target_cl != "none" and cf_class != target_cl:
+    					continue	
     				pt_path = os.path.join(folder_path, fname)
     				cf_data = torch.load(pt_path, map_location=device)
     				cf_data = cf_data.to(device)    				
@@ -154,25 +173,24 @@ def pipeline(config):
     					out_cf = model(cf_data)
     					probs_cf = torch.softmax(out_cf, dim=-1)
     					prob_cf = probs_cf[0, pred_graph].item()
-    				drop = prob_orig - prob_cf
     				cfs=cfs+1
-    				sum_drop=sum_drop+drop
-    		avg_drop_graph = sum_drop / cfs
-    		drop_scores.append(avg_drop_graph)
+    				sum_drop=sum_drop + (prob_orig - prob_cf)
+    		avg_drop_per_graph = sum_drop / cfs
+    		drop_scores_per_graph.append(avg_drop_per_graph)
+    		drop_per_test[test_i] = avg_drop_per_graph
 
 
-    		all_preds.append(pred_graph)
-    		all_labels.append(data.y.item()) 
+
+
+    		# ------------------------------------------------------------------------------------- Combinations
     		G_whole = to_networkx(data, to_undirected=True)
     		G_whole.remove_edges_from(nx.selfloop_edges(G_whole))
-
-
-    		best_score_for_graph = 0.0    		
+    		avg_score_per_graph = 0.0    		
     		cf_scores = []
-    		for del_list, add_list in best_cf_edges[test_i]:   # each counterfactual   			ε
+    		for del_list, add_list in best_cf_edges[test_i]:   # each counterfactual   			
     			same = 0
     			total = 0    			    	
-    			edits = [("DEL", e) for e in del_list] + [("ADD", e) for e in add_list]      #1 counterfactual 				   			
+    			edits = [("DEL", e) for e in del_list] + [("ADD", e) for e in add_list]      #1 counterfactual			   			
     			for r in range(1, len(edits)):
     				for combo in itertools.combinations(edits, r):
     					G_tmp = G_whole.copy()
@@ -193,29 +211,29 @@ def pipeline(config):
     					if pred_graph==pred_cf :
     						same += 1
     			cf_scores.append((same / total) if total > 0 else 1.0)   					
-    		best_score_for_graph = sum(cf_scores)/len(cf_scores) if cf_scores else 0.0
-    		scores.append(best_score_for_graph)
-    		
-    		
-    	print(len(numbers))
-    	print(len(drop_scores))
-    	print(len(best_cf_edges))
-    	avg_drop_all = (sum(drop_scores) / len(drop_scores)) if drop_scores else 0.0
-				
-    	return scores, all_preds, all_labels, avg_drop_all
+    		avg_score_per_graph = sum(cf_scores)/len(cf_scores) 
+    		scores.append(avg_score_per_graph)    	   		
+    		comb_per_test[test_i] = avg_score_per_graph
+    		    		
+    	fidelity = round((sum(drop_scores_per_graph) / len(drop_scores_per_graph)),2)
+    	avg_comb_exp_size = round(sum(scores)/len(scores), 2)
+      				
+    	return avg_comb_exp_size, fidelity, comb_per_test, drop_per_test
    							
 
+
+
+
+
+
+#-------------------------------- START CODE ---------------------------------------------
 
     results = {}
     motif_nodes = {20, 21, 22, 23, 24}
     subfolders = []
     for name in os.listdir(base_folder):
     	subfolders.append(name)
-    print(subfolders)
 
-
-   
-   
     def parse_predefined_cf_class(name):
     	key1 = "denoised_"
     	i = name.find(key1)
@@ -224,9 +242,7 @@ def pipeline(config):
     	i = name.find(key2)
     	s2 = name[i + len(key2):].split("_", 1)[0]
     	return s1,s2
-    	
-    	
-    	
+  	
     for sub in subfolders:
     	print("------------------------------START----------------------------------------") 
     	folder_path = os.path.join(base_folder, sub)
@@ -239,17 +255,14 @@ def pipeline(config):
     	target_cl =sub.split("cf_class_")[1].split("_")[0]
     	if target_cl != "none":
     		target_cl =int(sub.split("cf_class_")[1].split("_")[0])
-    	
-    	
-    	
-    	# ----------------------------------TIMES
+
+    	# --------------------------------------------------------------------------------------------- TIMES
     	txt_path = os.path.join(folder_path, f"{sub}.txt")
     	if os.path.exists(txt_path):
     		with open(txt_path, "r") as f:
     			print(f.read())
-    			
-   			
-    	# ----------------------------------SIZE OF THE FIRST EXPLANATION
+    			   			
+    	# --------------------------------------------------------------------------------------------- SIZE OF THE FIRST EXPLANATION
     	first_edges_path = os.path.join(folder_path, "first_cf_edges.txt")
     	first_exp_size = []
     	if os.path.exists(first_edges_path):
@@ -275,71 +288,95 @@ def pipeline(config):
     				first_exp_size.append(explanation_size)
     			avg_first_exp = round(sum(first_exp_size)/len(first_exp_size), 2)
    			
-    		
-    	
-    	
+  	# --------------------------------------------------------------------------------------------- Probability of Necessity
     	best_explanation_size, best_motif_score, best_cf_edges = {}, {}, {} 
     	numbers = set()
     	for fname in os.listdir(folder_path):
     		if fname.endswith(".png"):
-    			test_index = int(fname.split("_")[0])
-    			
-    			# PROPABILITY OF NECESSITY    		
+    			test_index = int(fname.split("_")[0])    		
     			cf_class = int(fname[:-4].split("_")[-1])
-    			if config.datasets.dataset_name.startswith("ba_2motifs_3class") and cf_class==2:
+    			if config.datasets.dataset_name.startswith("ba_2motifs_3class") and cf_class==2: #This prevents the count of unique cf with cl=2 in -OH
     				continue
     			if target_cl != "none" and cf_class != target_cl:
     				continue
     			numbers.add(test_index)
-    			
-    			best_explanation_size, best_motif_score, best_cf_edges = metrics(fname, test_index, best_explanation_size, best_motif_score, best_cf_edges)
-    	print(len(numbers))		
-    	
-    	avg_exp_size = round(sum(best_explanation_size.values()) / len(best_explanation_size) if best_explanation_size else 0.0, 2)
-    	avg_motif = None
-    	if config.datasets.dataset_name.startswith("ba"):
-    		avg_motif = round(sum(best_motif_score.values()) / len(best_motif_score) if best_motif_score else 0.0, 2)
-    		
 
-    	scores, all_preds, all_labels, avg_drop_graph = exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path)
-    	avg_comb_exp_size = round(sum(scores)/len(scores) if scores else 0.0, 2)
-    	model_accuracy = accuracy_score(all_labels, all_preds)
-    	print(f'Model Accuracy: {model_accuracy:.14f}')
-    	print("------------------------------END----------------------------------------")
-    	print(" ")
-    	print(" ")				
-    	results[arguments] = [ len(numbers), avg_first_exp, avg_exp_size, avg_comb_exp_size, avg_motif, avg_drop_graph]
-	
+  	# --------------------------------------------------------------------------------------------- EXPLANATION SIZE, MOTIF PROXIMITY	
+    			best_explanation_size, best_motif_score, best_cf_edges = metrics(fname, test_index, best_explanation_size, best_motif_score, best_cf_edges)
+    	avg_exp_size = round(sum(best_explanation_size.values()) / len(best_explanation_size), 2)
+    	avg_motif = round(sum(best_motif_score.values()) / len(best_motif_score), 2)
+
+
+
+  	# --------------------------------------------------------------------------------------------- FIDELITY, COMBINATIONS
+    	avg_comb_exp_size, fidelity,_,_ = exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path, target_cl)
+    	print("------------------------------END----------------------------------------\n\n")
+    	
+    	
+    	
+    					
+    	results[arguments] = [len(numbers), fidelity,  avg_first_exp, avg_exp_size, avg_comb_exp_size, avg_motif]
     for k, v in sorted(results.items()):
-    	print(f"{k} : {v[0]}, ({v[1]}/{v[2]}/{v[3]}), {v[4]}, {v[5]}")
-   		
+    	print(f"{k} : {v[0]}, {v[1]}, ({v[2]}/{v[3]}), {v[4]}, {v[5]}")
+    		
+ 
+ 
+ 
+ 
+#------------------------------------------------------------------------------------------------------ UNION
+#------------------------------------------------------------------------------------------------------------------------------------------------ 	
+#------------------------------------------------------------------------------------------------------------------------------------------------		
     unique_tests_per_den = defaultdict(set)
+    best_exp_per_den   = defaultdict(dict)  
+    best_motif_per_den = defaultdict(dict)   
+    best_edges_per_den = defaultdict(dict)  
+    best_comb_per_den = defaultdict(dict)   
+    best_drop_per_den = defaultdict(dict)   
+    
     for sub in subfolders:
     	if sub == "naive_random_baseline":
     		continue
     	den, OH = parse_predefined_cf_class(sub)
-    	if OH == "none":
+    	if OH =="none":
     		continue
-    		
+	
     	target_cl =int(sub.split("cf_class_")[1].split("_")[0])
-
     	folder_path = os.path.join(base_folder, sub)
+    	numbers = set()
+    	best_exp_sub, best_motif_sub, best_edges_sub = {}, {}, {}
     	for fname in os.listdir(folder_path):
     		if fname.endswith(".png"):
     			
     			test_index = int(fname.split("_")[0])
     			cf_class = int(fname[:-4].split("_")[-1])
-    			if target_cl==cf_class:
-    			
+    			if target_cl==cf_class: 
+    				numbers.add(test_index)   			
     				unique_tests_per_den[den].add(test_index)
-    print("\n=== Unique test ids grouped by same den")
+    				best_exp_per_den[den], best_motif_per_den[den], best_edges_per_den[den] = metrics(fname, test_index, best_exp_per_den[den], best_motif_per_den[den], best_edges_per_den[den])    	   				
+    				best_exp_sub, best_motif_sub, best_edges_sub = metrics(fname, test_index, best_exp_sub, best_motif_sub, best_edges_sub)	
+
+    	_, _, comb_per_test, drop_per_test = exp_size_combinations( test_indices, numbers, dataset, device, model, best_edges_sub , folder_path, target_cl)
+
+    	for t, s in comb_per_test.items():
+    		best_comb_per_den[den][t] = s if t not in best_comb_per_den[den] else max(best_comb_per_den[den][t], s)
+    	for t, s in drop_per_test.items():
+    		best_drop_per_den[den][t] = s if t not in best_drop_per_den[den] else max(best_drop_per_den[den][t], s)
+	
+    				
+    print("\n=== Unique test ids grouped by same den")	
     for den in unique_tests_per_den.keys():
-    	print(f"den={den}: {len(unique_tests_per_den[den])}")
-    print(" ")	
+    	avg_exp = round(sum(best_exp_per_den[den].values()) / len(best_exp_per_den[den]), 2)
+    	avg_motif = round(sum(best_motif_per_den[den].values()) / len(best_motif_per_den[den]), 2) 
+    	avg_comb = round(sum(best_comb_per_den[den].values()) / len(best_comb_per_den[den]), 2)
+    	avg_drop = round(sum(best_drop_per_den[den].values()) / len(best_drop_per_den[den]), 2)
+    	print(f"den={den}: {len(unique_tests_per_den[den])}, {avg_drop}, {avg_exp}, {avg_comb}, {avg_motif}")
+    	
+#------------------------------------------------------------------------------------------------------------------------------------------------   
+#------------------------------------------------------------------------------------------------------------------------------------------------    
     
     
-    
-    
+
+
     # RANDOM 
     for sub in subfolders:
     	folder_path = os.path.join(base_folder, sub)
@@ -352,21 +389,13 @@ def pipeline(config):
     				test_index = int(fname.split("_")[0])
     				numbers.add(test_index)
     				best_explanation_size, best_motif_score, best_cf_edges = metrics(fname, test_index, best_explanation_size, best_motif_score, best_cf_edges)
-    		avg_exp_size = round(sum(best_explanation_size.values()) / len(best_explanation_size) if best_explanation_size else 0.0, 2)
-    		avg_motif = None
-    		if config.datasets.dataset_name.startswith("ba"):
-    			avg_motif = round(sum(best_motif_score.values()) / len(best_motif_score) if best_motif_score else 0.0, 2)
-    		scores, all_preds, all_labels, avg_drop_graph = exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path)
-    		avg_comb_exp_size = round(sum(scores)/len(scores) if scores else 0.0,2)
-    		model_accuracy = accuracy_score(all_labels, all_preds)
-    			
-    		print("\n=== RANDOM")
-    		print(len(numbers), end=", ")
-    		print(avg_exp_size, end=", ")
-    		print(avg_comb_exp_size, end=", ")
-    		print(avg_motif)
-    		print(avg_drop_graph)
-    
+    		avg_exp_size = round(sum(best_explanation_size.values()) / len(best_explanation_size), 2)
+    		avg_motif = round(sum(best_motif_score.values()) / len(best_motif_score), 2)   		
+    		avg_comb_exp_size, fidelity,_,_ = exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path, target_cl="none")
+    		
+    		print(f"\n=== RANDOM\n{len(numbers)}, {fidelity}, {avg_exp_size}, {avg_comb_exp_size}, {avg_motif}")
+  
+
 if __name__ == '__main__':
     import sys
     sys.argv.append(f"datasets.dataset_root={os.path.join(os.path.dirname(__file__), 'datasets')}")

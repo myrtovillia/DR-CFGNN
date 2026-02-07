@@ -25,18 +25,6 @@ predefined_classes = DATASET_CLASSES[dataset_name]
 
 
 
-# -----------------------
-# RANDOM
-# -----------------------
-cmd = [
-    "python", "-m", "benchmarks.xgraph.DR_CFGNN",
-    f"datasets={dataset_name}",
-    "dr_cfgnn.run_dr_cfgnn=False" ,
-    "dr_cfgnn.run_random_baseline=True"
-]
-print("Running:", " ".join(cmd))
-subprocess.run(cmd, check=False)
-
 
  
 # -----------------------
@@ -99,4 +87,20 @@ for cf_classes in predefined_classes:
     ]
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, check=False)
+    
+    
+    
+# -----------------------
+# RANDOM
+# -----------------------
+cmd = [
+    "python", "-m", "benchmarks.xgraph.DR_CFGNN",
+    f"datasets={dataset_name}",
+    "dr_cfgnn.run_dr_cfgnn=False" ,
+    "dr_cfgnn.run_random_baseline=True"
+]
+print("Running:", " ".join(cmd))
+subprocess.run(cmd, check=False)
+
+
 
