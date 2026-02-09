@@ -20,20 +20,26 @@ from torch_geometric.utils import to_networkx, from_networkx
 x_map = {
     'atomic_num':
     list(range(0, 119)),
+    
     'chirality': [
         'CHI_UNSPECIFIED',
         'CHI_TETRAHEDRAL_CW',
         'CHI_TETRAHEDRAL_CCW',
         'CHI_OTHER',
     ],
+    
     'degree':
     list(range(0, 11)),
+    
     'formal_charge':
     list(range(-5, 7)),
+    
     'num_hs':
     list(range(0, 9)),
+    
     'num_radical_electrons':
     list(range(0, 5)),
+    
     'hybridization': [
         'UNSPECIFIED',
         'S',
@@ -44,7 +50,9 @@ x_map = {
         'SP3D2',
         'OTHER',
     ],
+    
     'is_aromatic': [False, True],
+    
     'is_in_ring': [False, True],
 }
 
@@ -96,51 +104,58 @@ def extract_zip(path, folder, log=True):
 
 
 
-def add_total_noise(graph, edge_noise_ratio=0.04):
+def add_total_noise(graph, node_noise_ratio=0.04, edge_noise_ratio=0.04):
+
     num_nodes = graph.x.size(0)
+    num_noisy_nodes = max(1, int(node_noise_ratio * num_nodes))
+    noisy_indices = random.sample(range(num_nodes), num_noisy_nodes)  
+    x_noisy = graph.x.clone()
+    for idx in noisy_indices:   
 
-    # (1) κράτα το παλιό edge_attr (αν υπάρχει) και ένα lookup για να το ξαναβάλεις
-    old_edge_attr = graph.edge_attr if hasattr(graph, "edge_attr") else None
-    if old_edge_attr is not None:
-        old_pairs = list(zip(graph.edge_index[0].tolist(), graph.edge_index[1].tolist()))
-        old_lookup = {p: i for i, p in enumerate(old_pairs)}
+    	old = x_noisy[idx, 1].item()
+    	choices = list(range(4))
+    	choices.remove(old)
+    	x_noisy[idx, 1] = random.choice(choices)
+    	    	
+    	x_noisy[idx, 2] = torch.clamp(x_noisy[idx, 2] + random.choice([-1, 1]), 0, 10)
+    	x_noisy[idx, 3] = torch.clamp(x_noisy[idx, 3] + random.choice([-1, 1]), -5, 6)
+    	x_noisy[idx, 4] = torch.clamp(x_noisy[idx, 4] + random.choice([-1, 1]), 0, 8)
+    	x_noisy[idx, 5] = torch.clamp(x_noisy[idx, 5] + random.choice([-1, 1]), 0, 4)
+    	
+    	old = x_noisy[idx, 6].item()
+    	choices = list(range(8))
+    	choices.remove(old)
+    	
+    	x_noisy[idx, 6] = random.choice(choices)   	
+    	x_noisy[idx, 7] = 1 - x_noisy[idx, 7]
+    	x_noisy[idx, 8] = 1 - x_noisy[idx, 8]
+    	
+    graph_noisy = graph.clone()
+    graph_noisy.x = x_noisy
+    
 
-    G = to_networkx(graph, to_undirected=True)
-    num_edges_to_modify = max(1, int(edge_noise_ratio * G.number_of_edges()))
-    action = random.choice(["add", "remove"])
 
-    if action == "remove":
-        remove_edges = random.sample(list(G.edges()), min(num_edges_to_modify, G.number_of_edges()))
-        G.remove_edges_from(remove_edges)
-    else:
-        added_edges = []
-        while len(added_edges) < num_edges_to_modify:
-            u, v = random.randint(0, num_nodes - 1), random.randint(0, num_nodes - 1)
-            if u != v and not G.has_edge(u, v):
-                G.add_edge(u, v)
-                added_edges.append((u, v))
-
-    graph_noisy = from_networkx(G)
-
-    # κράτα features/label/smiles όπως είναι
-    graph_noisy.x = graph.x
-    graph_noisy.y = graph.y
-    if hasattr(graph, "smiles"):
-        graph_noisy.smiles = graph.smiles
-
-    # (2) ξαναφτιάξε edge_attr με σωστό μήκος ώστε να μη σκάει το collate
-    if old_edge_attr is not None:
-        new_pairs = list(zip(graph_noisy.edge_index[0].tolist(), graph_noisy.edge_index[1].tolist()))
-        default = torch.zeros((old_edge_attr.size(1),), dtype=old_edge_attr.dtype)
-        new_attrs = []
-        for p in new_pairs:
-            if p in old_lookup:
-                new_attrs.append(old_edge_attr[old_lookup[p]])
-            else:
-                new_attrs.append(default)
-        graph_noisy.edge_attr = torch.stack(new_attrs, dim=0)
-
+    edge_index = graph.edge_index
+    E = edge_index.size(1)
+    u = edge_index[0]
+    v = edge_index[1]
+    a = torch.minimum(u, v)
+    b = torch.maximum(u, v)
+    pairs = torch.stack([a, b], dim=1)   
+    uniq_pairs, inv = torch.unique(pairs, dim=0, return_inverse=True)# for each i in pairs points a j in uniq_pairs   
+    P = uniq_pairs.size(0)
+    k = max(1, int(edge_noise_ratio * P))
+    remove_pairs = set(random.sample(range(P), k))
+    keep = torch.tensor([i not in remove_pairs for i in inv.tolist()], dtype=torch.bool)
+    graph_noisy.edge_index = edge_index[:, keep]
+    graph_noisy.edge_attr  = graph.edge_attr[keep]
+ 
     return graph_noisy
+        
+           
+
+
+
 
 
 
@@ -365,7 +380,7 @@ class MoleculeDataset(InMemoryDataset):
         
         for idx in test_indices:
         	data_list[idx] = add_total_noise(data_list[idx])
-                	
+        		
                 
                 
         torch.save(self.collate(data_list), self.processed_paths[0])
@@ -375,4 +390,4 @@ class MoleculeDataset(InMemoryDataset):
 
 
 if __name__ == '__main__':
-    dataset = MoleculeDataset(root='.', name='MUTAG')
+    dataset = MoleculeDataset(root='.', name='bbbp')

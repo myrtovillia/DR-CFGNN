@@ -234,11 +234,11 @@ def add_total_noise(graph, node_noise_ratio=0.04, edge_noise_ratio=0.04, noise_s
     graph.x[noisy_indices] += noise
 
 
-    print(graph.edge_index)
+    
     G = to_networkx(graph, to_undirected=True)
     num_edges_to_modify = max(1, int(edge_noise_ratio * G.number_of_edges()))
     action = random.choice(["add", "remove"])
-    print(action)
+    
     
     if action == "remove":
         remove_edges = random.sample(list(G.edges()), num_edges_to_modify)    
@@ -335,11 +335,13 @@ class SynGraphDataset(InMemoryDataset):
             	
             	
             	
-           	
+           
+            #''' uncomment this if you want to add noise
             test_indices = [256, 698, 495, 640, 945, 638, 877, 479, 995, 372, 135, 773, 383, 859, 125, 807, 633, 584, 550, 660, 305, 575, 423, 772, 60, 838, 715, 649, 348, 75, 865, 438, 870, 665, 977, 900, 471, 679, 436, 212, 103, 963, 40, 652, 412, 164, 604, 795, 20, 94, 117, 732, 742, 631, 975, 109, 895, 958, 52, 720, 42, 973, 410, 866, 262, 442, 776, 592, 142, 641, 911, 192, 979, 317, 658, 524, 462, 964, 737, 218, 403, 147, 997, 924, 141, 82, 308, 581, 565, 835, 976, 644, 177, 709, 890, 863, 914, 887, 538, 499]  
             for idx in test_indices:
 
             	data_list[idx] = add_total_noise(data_list[idx])
+            #'''
             
 
 

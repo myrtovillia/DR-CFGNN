@@ -96,7 +96,6 @@ def add_total_noise(graph, node_noise_ratio=0.04, edge_noise_ratio=0.04):
 
     G = to_networkx(graph, to_undirected=True)
     num_edges_to_modify = max(1, int(edge_noise_ratio * G.number_of_edges()))
-    print(num_edges_to_modify)
     action = random.choice(["add", "remove"])
     if action == "remove":
         remove_edges = random.sample(list(G.edges()), num_edges_to_modify)

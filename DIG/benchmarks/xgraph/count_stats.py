@@ -65,7 +65,7 @@ def pipeline(config):
 
 
 
-    def metrics(fname, test_index, best_explanation_size, best_motif_score, best_cf_edges ):   
+    def metrics(fname, test_index, per_test_records, best_explanation_size, best_motif_score, best_cf_edges ):   
     	added_edge = None
     	del_edge = None
     	if "added_(" in fname:
@@ -118,18 +118,22 @@ def pipeline(config):
     			u, v = map(int, e.split("-"))   	
     			factual_nodes.add(u); factual_nodes.add(v)
     		score = 0
-    		for e in add_list:
+    		for e in all_edges:
     			u, v = map(int, e.split("-"))
     			if u in factual_nodes or v in factual_nodes:
     				score += 1
-    		score = score / len(add_list) if add_list else None  # for each cf
-    	if score is not None:		
-	    	if test_index not in best_motif_score:
-	    			best_motif_score[test_index] = score
-	    	else:
-	    			if score > best_motif_score[test_index]:
-	    				best_motif_score[test_index] = score 	    		 				
-    	return best_explanation_size, best_motif_score, best_cf_edges 
+    		score = score / len(all_edges) # for each cf
+    	if test_index not in best_motif_score:
+    		best_motif_score[test_index] = score
+    	else:
+    		if score > best_motif_score[test_index]:
+    			best_motif_score[test_index] = score 	    
+	 		 				
+    	key = fname[:-4] 
+    	per_test_records[test_index][key] = {"candidate": candidate, "exp_size": explanation_size,  "motif": score}
+
+    	
+    	return per_test_records, best_explanation_size, best_motif_score, best_cf_edges 
  
  
  
@@ -137,7 +141,7 @@ def pipeline(config):
  
  
 
-    def exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path, target_cl): 	   	
+    def exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path, per_test_records, target_cl): 	   	
     	scores = []   
     	drop_scores_per_graph = []
     	
@@ -166,7 +170,7 @@ def pipeline(config):
     				cf_class = int(fname[:-3].split("_")[-1])
     				if target_cl != "none" and cf_class != target_cl:
     					continue	
-    				pt_path = os.path.join(folder_path, fname)
+    				pt_path = os.path.join(folder_path, fname) 
     				cf_data = torch.load(pt_path, map_location=device)
     				cf_data = cf_data.to(device)    				
     				with torch.no_grad():
@@ -175,6 +179,10 @@ def pipeline(config):
     					prob_cf = probs_cf[0, pred_graph].item()
     				cfs=cfs+1
     				sum_drop=sum_drop + (prob_orig - prob_cf)
+    				
+    				key = fname[:-3]
+    				per_test_records[test_i][key]["drop"]=(prob_orig - prob_cf)
+    			
     		avg_drop_per_graph = sum_drop / cfs
     		drop_scores_per_graph.append(avg_drop_per_graph)
     		drop_per_test[test_i] = avg_drop_per_graph
@@ -218,7 +226,7 @@ def pipeline(config):
     	fidelity = round((sum(drop_scores_per_graph) / len(drop_scores_per_graph)),2)
     	avg_comb_exp_size = round(sum(scores)/len(scores), 2)
       				
-    	return avg_comb_exp_size, fidelity, comb_per_test, drop_per_test
+    	return per_test_records, avg_comb_exp_size, fidelity, comb_per_test, drop_per_test
    							
 
 
@@ -229,6 +237,7 @@ def pipeline(config):
 #-------------------------------- START CODE ---------------------------------------------
 
     results = {}
+    results_new = {}
     motif_nodes = {20, 21, 22, 23, 24}
     subfolders = []
     for name in os.listdir(base_folder):
@@ -291,6 +300,7 @@ def pipeline(config):
   	# --------------------------------------------------------------------------------------------- Probability of Necessity
     	best_explanation_size, best_motif_score, best_cf_edges = {}, {}, {} 
     	numbers = set()
+    	per_test_records = defaultdict(dict)  
     	for fname in os.listdir(folder_path):
     		if fname.endswith(".png"):
     			test_index = int(fname.split("_")[0])    		
@@ -302,30 +312,70 @@ def pipeline(config):
     			numbers.add(test_index)
 
   	# --------------------------------------------------------------------------------------------- EXPLANATION SIZE, MOTIF PROXIMITY	
-    			best_explanation_size, best_motif_score, best_cf_edges = metrics(fname, test_index, best_explanation_size, best_motif_score, best_cf_edges)
+    			per_test_records, best_explanation_size, best_motif_score, best_cf_edges = metrics(fname, test_index, per_test_records, best_explanation_size, best_motif_score, best_cf_edges)
     	avg_exp_size = round(sum(best_explanation_size.values()) / len(best_explanation_size), 2)
     	avg_motif = round(sum(best_motif_score.values()) / len(best_motif_score), 2)
 
 
 
   	# --------------------------------------------------------------------------------------------- FIDELITY, COMBINATIONS
-    	avg_comb_exp_size, fidelity,_,_ = exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path, target_cl)
-    	print("------------------------------END----------------------------------------\n\n")
+    	per_test_records, avg_comb_exp_size, fidelity,_,_ = exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path, per_test_records , target_cl )
     	
+    	print(per_test_records)
+
+
+
+    	w_drop = 2.0   # βάρος fidelity/drop (μεγαλύτερο = το προτιμάς)
+    	w_size = 1.0   # βάρος exp_size (μεγαλύτερο = το προτιμάς πιο μικρό exp)
+    	selected = {}  # test_i -> record
+    	for test_i, recs in per_test_records.items():
+    		cand = [r for r in recs.values() ] 
+
+    		drops = [r["drop"] for r in cand]
+    		sizes = [r["exp_size"] for r in cand]
+    		dmin, dmax = min(drops), max(drops)
+    		smin, smax = min(sizes), max(sizes)
+    		
+    		best = None
+    		best_score = -1e18
+    		for r in cand:
+    			nd = 0.0 if dmax == dmin else (r["drop"] - dmin) / (dmax - dmin)
+    			ns = 0.0 if smax == smin else (r["exp_size"] - smin) / (smax - smin) 
+    			score = w_drop * nd + w_size * (1.0 - ns)
+    			if score > best_score:
+    				best_score = score
+    				best = r
+    				
+    		selected[test_i] = best
+
+
+    	print("------------------------------END----------------------------------------\n\n")
+    	avg_drop_sel = round( sum(r["drop"] for r in selected.values()) / len(selected) if selected else None, 2)
+    	avg_size_sel = round( sum(r["exp_size"] for r in selected.values()) / len(selected) if selected else None,2)
+    	avg_motif_sel = round( (sum(r["motif"] for r in selected.values() if r.get("motif") is not None) /sum(1 for r in selected.values() if r.get("motif") is not None)) if selected else Noneprint("OLD:", fidelity, avg_exp_size, avg_motif),2)
+    	print("NEW:", avg_drop_sel, avg_size_sel, avg_motif_sel)
+   	
     	
     	
     					
-    	results[arguments] = [len(numbers), fidelity,  avg_first_exp, avg_exp_size, avg_comb_exp_size, avg_motif]
-    for k, v in sorted(results.items()):
-    	print(f"{k} : {v[0]}, {v[1]}, ({v[2]}/{v[3]}), {v[4]}, {v[5]}")
-    		
+    	results[arguments] = [len(numbers), fidelity, avg_first_exp, avg_exp_size, avg_comb_exp_size, avg_motif]
+    	results_new[arguments] = [len(selected), avg_drop_sel, avg_first_exp, avg_size_sel, avg_comb_exp_size, avg_motif_sel]
+    for k in sorted(results.keys()):
+    	v  = results[k]
+    	vn = results_new.get(k, [0, None, None, None, None, None])
+
+    	#print(f"{k} : {v[0]}, {v[1]}, {v[2]}, {v[3]}, {v[4]}, {v[5]}")
+    	print(f"{k} : {vn[0]}, {vn[1]}, {vn[2]}, {vn[3]}, {vn[4]}, {vn[5]}")
+		
  
  
  
  
 #------------------------------------------------------------------------------------------------------ UNION
 #------------------------------------------------------------------------------------------------------------------------------------------------ 	
-#------------------------------------------------------------------------------------------------------------------------------------------------		
+#------------------------------------------------------------------------------------------------------------------------------------------------
+			
+    '''
     unique_tests_per_den = defaultdict(set)
     best_exp_per_den   = defaultdict(dict)  
     best_motif_per_den = defaultdict(dict)   
@@ -370,7 +420,7 @@ def pipeline(config):
     	avg_comb = round(sum(best_comb_per_den[den].values()) / len(best_comb_per_den[den]), 2)
     	avg_drop = round(sum(best_drop_per_den[den].values()) / len(best_drop_per_den[den]), 2)
     	print(f"den={den}: {len(unique_tests_per_den[den])}, {avg_drop}, {avg_exp}, {avg_comb}, {avg_motif}")
-    	
+    '''   	
 #------------------------------------------------------------------------------------------------------------------------------------------------   
 #------------------------------------------------------------------------------------------------------------------------------------------------    
     
@@ -383,15 +433,16 @@ def pipeline(config):
     	
     	if sub=="naive_random_baseline":
     		numbers = set()
-    		best_explanation_size, best_motif_score, best_cf_edges = {}, {}, {}   		
+    		best_explanation_size, best_motif_score, best_cf_edges = {}, {}, {}   
+    		per_test_records = defaultdict(dict)		
     		for fname in os.listdir(folder_path):
     			if fname.endswith(".png"):
     				test_index = int(fname.split("_")[0])
     				numbers.add(test_index)
-    				best_explanation_size, best_motif_score, best_cf_edges = metrics(fname, test_index, best_explanation_size, best_motif_score, best_cf_edges)
+    				per_test_records, best_explanation_size, best_motif_score, best_cf_edges = metrics(fname, test_index, per_test_records, best_explanation_size, best_motif_score, best_cf_edges)
     		avg_exp_size = round(sum(best_explanation_size.values()) / len(best_explanation_size), 2)
     		avg_motif = round(sum(best_motif_score.values()) / len(best_motif_score), 2)   		
-    		avg_comb_exp_size, fidelity,_,_ = exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path, target_cl="none")
+    		per_test_records, avg_comb_exp_size, fidelity,_,_ = exp_size_combinations(test_indices, numbers, dataset, device, model, best_cf_edges, folder_path, per_test_records,  target_cl="none")
     		
     		print(f"\n=== RANDOM\n{len(numbers)}, {fidelity}, {avg_exp_size}, {avg_comb_exp_size}, {avg_motif}")
   

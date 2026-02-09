@@ -8,7 +8,7 @@ for arg in sys.argv[1:]:
 
 DATASET_CLASSES = {    
     "ba_2motifs": [0, 1],
-    "ba_2motifs_3class": [0, 1], # we do not want the class 2, it is an incomplete class
+    "ba_2motifs_3class": [0, 1, 2], 
     "ba_3motifs": [0, 1, 2],
     "ba_4motifs": [0, 1, 2, 3],
     "bbbp": [0, 1],
