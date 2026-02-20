@@ -31,7 +31,7 @@ or
 
 
 4. Train the factual explainer : 
-`python -m benchmarks.xgraph.subgraphx datasets=ba_2motifs explainers=subgraphx denoising_mode=None`
+`python -m benchmarks.xgraph.subgraphx datasets=ba_2motifs explainers=subgraphx denoising_mode=none`
 or
 `python -m benchmarks.xgraph.subgraphx datasets=ba_2motifs explainers=subgraphx denoising_mode=without_one_hot`
 or
@@ -59,24 +59,16 @@ To run all the configurations per dataset (with or without denoising mode and wi
 -----------------------------------------------------------------------------------------------------
 **Experiments for Robustness**: 
  
-Go to `dig/xgraph/dataset` and uncomment the noise injection code in `syn_dataset.py` and `nlp_dataset.py`. We inject noise only into the test graphs. 
+Go to `dig/xgraph/dataset` and uncomment the noise injection code in `syn_dataset.py`, `mol_dataset.py` and `nlp_dataset.py`. We inject noise only into the test graphs. 
 
 The folders `checkpoints`, `checkpoints_reconstruction_False`, and `checkpoints_reconstruction_True` remain unchanged. 
 
-Then, rerun the factual explainer. A new `datasets` (automatically) and `results` folder will be created, containing the noisy input graphs and its factual explanations, respectively. 
+Then, rerun the factual explainer. A new `datasets` (automatically) and `results` folder will be created, containing the dataset with noisy test graphs and its factual explanations, respectively. 
 
-Finally, rerun `DR_CFGNN`. This will generate a new `RESULTS_dr_cfgnn_AND_random` folder with results on the noised test graphs.
-
-
+Finally, rerun `DR_CFGNN.py`. This will generate a new `RESULTS_dr_cfgnn_AND_random` folder with results on the noised test graphs.
 
 
-old
-Go to `DIG_ROBUSTNESS/dig/xgraph/dataset/syn_dataset.py` and `nlp_dataset.py` and add noise in the test graphs (done it).
 
-Delete from DIG_ROBUSTNESS
---datasets (new datasets will produced), 
---MELD & results (new plots will produced)
-and rerun all the above process.
 
 
                   

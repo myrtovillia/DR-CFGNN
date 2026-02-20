@@ -194,7 +194,7 @@ class SentiGraphDataset(InMemoryDataset):
             self.data, self.slices = self.collate(data_list)
         
         
-        #''' uncomment this if you want to add noise
+        ''' uncomment this if you want to add noise
         if "split_indices" in self.supplement:
         	split_indices = self.supplement["split_indices"]
         	test_indices = (split_indices == 2).nonzero(as_tuple=True)[0].tolist()
@@ -213,7 +213,7 @@ class SentiGraphDataset(InMemoryDataset):
         		data_list[idx] = add_total_noise(data_list[idx])
 
         	self.data, self.slices = self.collate(data_list)
-        #'''
+        '''
         torch.save((self.data, self.slices, self.supplement), self.processed_paths[0])
 
 

@@ -278,8 +278,8 @@ def pipeline(config):
 	    		if pred_graph != pred_subgraph:
 	    			max_deletes = 1	    		
 	    		 
-	    		time_limit = 60  
-	    		time_limit_2 = 20.0
+	    		time_limit = 30 
+	    		time_limit_2 = 10
 	    		start_time = time.perf_counter()
 	    		while len(seen_deletes) < max_deletes:
 	    			if time.perf_counter() - start_time > time_limit:
@@ -427,6 +427,8 @@ def pipeline(config):
 		    				img_path = save_path.replace('.pt', '.png')
 		    				plt.savefig(img_path, bbox_inches='tight')
 		    				plt.close()
+		    				
+		    				
 		    				
 		    				
 
