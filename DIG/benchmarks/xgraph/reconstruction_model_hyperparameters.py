@@ -11,7 +11,7 @@ def hyperparams(dataset_name):
             "neg_ratio": 1,
             "disjoint_train_ratio": 0.35
         }
-    elif dataset_name == "bbbp":
+    elif dataset_name in ["bbbp", "mutag"] :
         return {
             "num_encoder_layers": 3,
             "encoder_dropout": 0.1,

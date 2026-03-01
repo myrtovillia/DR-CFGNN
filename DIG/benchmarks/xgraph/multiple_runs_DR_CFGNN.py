@@ -12,9 +12,9 @@ DATASET_CLASSES = {
     "ba_3motifs": [0, 1, 2],
     "ba_4motifs": [0, 1, 2, 3],
     "bbbp": [0, 1],
-    "graph_sst2": [0, 1],
+    "mutag": [0, 1],
     "twitter": [0, 1, 2],
-    "graph_sst5": [0, 1, 2, 3, 4],
+    "graph_sst5": [0, 1, 2, 3, 4]
 }
 if dataset_name not in DATASET_CLASSES:
     raise ValueError(
@@ -27,7 +27,6 @@ predefined_classes = DATASET_CLASSES[dataset_name]
 
 
 
- 
 # -----------------------
 # denoising_mode=none + one_hot=False 
 # -----------------------
@@ -39,6 +38,8 @@ cmd = [
 ]
 print("Running:", " ".join(cmd))
 subprocess.run(cmd, check=False)
+
+
 
 
 
@@ -56,6 +57,10 @@ for cf_classes in predefined_classes:
     ]
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, check=False)
+
+
+ 
+
 
 
 
@@ -77,6 +82,8 @@ subprocess.run(cmd, check=False)
 
 
 
+
+
 # -----------------------
 # denoising_mode=without_one_hot + one_hot=True + all predefined classes
 # -----------------------
@@ -91,7 +98,11 @@ for cf_classes in predefined_classes:
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, check=False)
     
-    
+   
+   
+   
+   
+   
     
 # -----------------------
 # RANDOM

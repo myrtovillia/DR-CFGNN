@@ -278,8 +278,8 @@ def pipeline(config):
 	    		if pred_graph != pred_subgraph:
 	    			max_deletes = 1	    		
 	    		 
-	    		time_limit = 30 
-	    		time_limit_2 = 10
+	    		time_limit = 60 
+	    		time_limit_2 = 20
 	    		start_time = time.perf_counter()
 	    		while len(seen_deletes) < max_deletes:
 	    			if time.perf_counter() - start_time > time_limit:
@@ -410,7 +410,15 @@ def pipeline(config):
 		    				nx.draw_networkx_edges(cf_nx, pos, edgelist=green_edges, edge_color='green', width=2)
 		    				nx.draw_networkx_edges(cf_nx, pos, edgelist=black_edges, edge_color='black', width=2)
 
-		    				if hasattr(data, 'smiles'): 
+		    				
+		    				if config.datasets.dataset_name.lower() == "mutag":
+		    					node_ids = data.x.argmax(dim=1).detach().cpu().numpy().tolist()
+		    					node_dict = {0:"C", 1:"O", 2:"Cl", 3:"H", 4:"N", 5:"F", 6:"Br", 7:"S", 8:"P", 9:"I", 10:"Na", 11:"K", 12:"Li", 13:"Ca"}
+		    					label_mapping = {i: node_dict.get(t, str(t)) for i, t in enumerate(node_ids)}
+		    					labels_to_use = {node: f"{node}: {label_mapping.get(node, '')}" for node in cf_nx.nodes}
+		    					nx.draw_networkx_labels(cf_nx, pos, labels=labels_to_use)
+		    				
+		    				elif hasattr(data, 'smiles'): 
 		    					labels_to_use = {node: f"{node}: {label_mapping.get(node, '')}" for node in cf_nx.nodes}
 		    					nx.draw_networkx_labels(cf_nx, pos, labels=labels_to_use)
 		    				elif config.datasets.dataset_name in ["graph_sst2", "graph_sst5", "twitter"]:

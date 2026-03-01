@@ -11,6 +11,15 @@ param:
     reward_method: 'mc_l_shapley'
     subgraph_building_method: 'split'
     verbose: True
+  mutag:
+    rollout: 20
+    high2low: False
+    c_puct: 10.0
+    min_atoms: 5
+    expand_atoms: 12
+    reward_method: 'mc_l_shapley'
+    subgraph_building_method: 'split'
+    verbose: True
   ba_shapes:
     rollout: 20
     high2low: True

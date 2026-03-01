@@ -26,6 +26,30 @@ param:
     fc_dropout: 0.0
     fc_nonlinear: 'relu'
     concate: False
+  mutag:
+    learning_rate: 0.001
+    weight_decay: 5e-4
+    milestones: None
+    gamma: None
+    batch_size: 32
+    num_epochs: 200
+    num_early_stop: 0
+    gnn_latent_dim:
+      - 128
+      - 128
+      - 128
+    gnn_dropout: 0.0
+    add_self_loop: True
+    gcn_adj_normalization: True
+    gnn_emb_normalization: False
+    graph_classification: True
+    node_classification: False
+    gnn_nonlinear: 'relu'
+    readout: 'max'
+    fc_latent_dim: []
+    fc_dropout: 0.0
+    fc_nonlinear: 'relu'
+    concate: False
   graph_sst2:
     learning_rate: 0.001
     weight_decay: 0.0

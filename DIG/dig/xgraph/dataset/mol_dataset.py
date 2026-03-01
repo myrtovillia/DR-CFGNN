@@ -254,7 +254,8 @@ class MoleculeDataset(InMemoryDataset):
 
     def download(self):
         if self.name.lower() == 'MUTAG'.lower():
-            url = self.mutag_url.format(self.names[self.name][1])
+            #url = self.mutag_url.format(self.names[self.name][1]) !!!!
+            return
         else:
             url = self.url.format(self.names[self.name][1])
         path = download_url(url, self.raw_dir)
@@ -266,11 +267,23 @@ class MoleculeDataset(InMemoryDataset):
             os.unlink(path)
 
     def process(self):
+    
+    
+    
+    
+    	# WE MADE SOME CHANGES ONLY TO USE THE MUTAG0 FROM THE CF2 PAPER
+    	
+    	
+    	
+    	
         if self.name.lower() == 'MUTAG'.lower():
             with open(os.path.join(self.raw_dir, 'MUTAG_node_labels.txt'), 'r') as f:
                 nodes_all_temp = f.read().splitlines()
-                nodes_all = [int(i) for i in nodes_all_temp]
+                #nodes_all = [int(i) for i in nodes_all_temp]   !!!!              
+                nodes_all = np.array([int(i) for i in nodes_all_temp], dtype=np.int64)
 
+
+            ''' !!!!
             adj_all = np.zeros((len(nodes_all), len(nodes_all)))
             with open(os.path.join(self.raw_dir, 'MUTAG_A.txt'), 'r') as f:
                 adj_list = f.read().splitlines()
@@ -279,7 +292,15 @@ class MoleculeDataset(InMemoryDataset):
                 l = int(lr[0])
                 r = int(lr[1])
                 adj_all[l - 1, r - 1] = 1
+            '''
 
+            with open(os.path.join(self.raw_dir, 'MUTAG_A.txt'), 'r') as f:
+            	adj_list = f.read().splitlines()
+            src = np.array([int(x.split(', ')[0]) - 1 for x in adj_list], dtype=np.int64)
+            dst = np.array([int(x.split(', ')[1]) - 1 for x in adj_list], dtype=np.int64)
+       
+            
+            
             with open(os.path.join(self.raw_dir, 'MUTAG_graph_indicator.txt'), 'r') as f:
                 graph_indicator_temp = f.read().splitlines()
                 graph_indicator = [int(i) for i in graph_indicator_temp]
@@ -288,11 +309,21 @@ class MoleculeDataset(InMemoryDataset):
             with open(os.path.join(self.raw_dir, 'MUTAG_graph_labels.txt'), 'r') as f:
                 graph_labels_temp = f.read().splitlines()
                 graph_labels = [int(i) for i in graph_labels_temp]
+            
+
+
+
 
             data_list = []
-            for i in range(1, 189):
+            num_graphs = int(graph_indicator.max())
+            nb_clss = int(nodes_all.max()) + 1
+            print(nb_clss)
+
+            for i in range(1, num_graphs + 1):
                 idx = np.where(graph_indicator == i)
                 graph_len = len(idx[0])
+                
+                '''
                 adj = adj_all[idx[0][0]:idx[0][0] + graph_len, idx[0][0]:idx[0][0] + graph_len]
                 label = int(graph_labels[i - 1] == 1)
                 feature = nodes_all[idx[0][0]:idx[0][0] + graph_len]
@@ -302,7 +333,29 @@ class MoleculeDataset(InMemoryDataset):
                 data_example = Data(x=torch.from_numpy(one_hot_feature).float(),
                                     edge_index=dense_to_sparse(torch.from_numpy(adj))[0],
                                     y=label)
+                                 
+                '''
+                
+                start = idx[0][0]
+                end = start + graph_len 
+                mask = (src >= start) & (src < end) & (dst >= start) & (dst < end)
+                row = src[mask] - start
+                col = dst[mask] - start                
+                edge_index = torch.from_numpy(np.stack([row, col], axis=0)).long()    
+       
+                feature = nodes_all[start:end]
+                feat = np.array(feature).reshape(-1)
+                one_hot_feature = np.eye(nb_clss)[feat]
+                label = int(graph_labels[i - 1] == 1)
+                
+                data_example = Data(x=torch.from_numpy(one_hot_feature).float(),edge_index=edge_index,y=label)
                 data_list.append(data_example)
+                
+                
+                
+                
+                
+                
         else:
             with open(self.raw_paths[0], 'r') as f:
                 dataset = f.read().split('\n')[1:-1]

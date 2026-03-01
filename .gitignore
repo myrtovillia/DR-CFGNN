@@ -1,6 +1,7 @@
 DIG/benchmarks/xgraph/checkpoints
 DIG/benchmarks/xgraph/checkpoints_reconstruction_False
 DIG/benchmarks/xgraph/checkpoints_reconstruction_True
+DIG/benchmarks/xgraph/csv_files
 DIG/benchmarks/xgraph/datasets
 DIG/benchmarks/xgraph/results
 DIG/benchmarks/xgraph/RESULTS_dr_cfgnn_AND_random

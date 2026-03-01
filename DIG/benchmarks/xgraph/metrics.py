@@ -109,7 +109,8 @@ def pipeline(config):
     	add_list = [e for e in add_list if e not in common]
     	candidate = [del_list, add_list] 
     	
-    	explanation_size = len(all_edges)   	
+    	explanation_size = len(all_edges)   
+    		
     	if test_index not in best_explanation_size:
     		best_explanation_size[test_index] = explanation_size
     		best_cf_edges[test_index] = [candidate]
@@ -265,7 +266,7 @@ def pipeline(config):
     			continue  		
     		pt_path = os.path.join(explanation_saving_dir, pt_files[test_i])
     		data_expl = torch.load(pt_path, map_location="cpu")
-    		plotted_expl = find_closest_node_result(data_expl, max_nodes=11)           ##### TUNE IT  !!!!    		
+    		plotted_expl = find_closest_node_result(data_expl, max_nodes=10)           ###### TUNE IT  !!!!    		
     		coalition_nodes = plotted_expl["coalition"]
     		expl_nodes_per_test[test_i] = set(coalition_nodes)
     	return expl_nodes_per_test
@@ -442,7 +443,7 @@ def pipeline(config):
     				unique_tests_per_den[den].add(test_index)
     				
     				per_test_records_den[den], _, _ = metrics(fname, test_index, expl_nodes_per_test, per_test_records_den[den] ,  {}, {})  					   				
-    				per_test_records_sub,best_exp_sub,best_edges_sub = metrics(fname, test_index,expl_nodes_per_test,per_test_records_sub,best_exp_sub, best_edges_sub)			
+    				per_test_records_sub,  best_exp_sub,  best_edges_sub = metrics(fname, test_index, expl_nodes_per_test,  per_test_records_sub,  best_exp_sub,   best_edges_sub)			
 	
     	per_test_records_den[den], _, comb_per_test_sub = exp_size_combinations(test_indices, numbers, dataset, device, model, best_edges_sub, folder_path, per_test_records_den[den], target_cl)
     	    	
@@ -518,7 +519,7 @@ def pipeline(config):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     csv_dir = os.path.join(script_dir, "csv_files")
     os.makedirs(csv_dir, exist_ok=True)
-    out_csv = os.path.join(csv_dir, f"prints_{config.datasets.dataset_name}.csv")
+    out_csv = os.path.join(csv_dir, f"metrics_{config.datasets.dataset_name}.csv")
     with open(out_csv, "w", newline="") as f:
     	 w = csv.writer(f)
     	 w.writerow(["DEN", "OH", "PN", "fidelity", "first_exp_size", "exp_size", "minimality", "motif_prox", "best_motif_prox"])

@@ -14,7 +14,7 @@ dr_cfgnn:
   center_add : 3
   max_nodes: 10
   threshold_add: 0.6
-  predefined_cf_class: 1 
+  predefined_cf_class: 1
   run_dr_cfgnn: True
   run_random_baseline: False
 one_hot_reconst: False

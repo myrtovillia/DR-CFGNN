@@ -3,6 +3,7 @@ import torch
 import random
 import numpy as np
 import sys
+import time
 # Make sure local DIG version is used, not the installed one
 print(" ")
 print(" Below are prints from the reconstruction")
@@ -215,8 +216,11 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
     best_val_auc = 0
     best_model_state = None
     patience =hp["early_stop_patience"]
-    patience_counter = 0    
-
+    patience_counter = 0   
+    
+     
+	
+    start_time = time.time()
     for epoch in range(epochs):
         model.train()
         total_loss = 0
@@ -278,6 +282,9 @@ def run_reconstruction(all_graphs, device, in_channels, hp, one_hot_reconst, num
             if patience_counter >= patience:
                 print(f"Early stopping at epoch {epoch:02d}")
                 break
+    total_time = time.time() - start_time
+    print(f"Total training time: {total_time:.2f} seconds")
+    
     print(f"Best Validation AUC: {best_val_auc:.4f}")
     model.load_state_dict(best_model_state)
 

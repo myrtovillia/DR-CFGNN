@@ -94,15 +94,17 @@ def pipeline(config):
 		
 		
 	script_dir = os.path.dirname(os.path.abspath(__file__))
-	base_folder = os.path.join(script_dir, "RESULTS_dr_cfgnn_AND_random_ORIGINAL", config.datasets.dataset_name)
+	base_folder = os.path.join(script_dir, "RESULTS_dr_cfgnn_AND_random", config.datasets.dataset_name)
 	sub_rob = next(s for s in os.listdir(base_folder) if s != "naive_random_baseline" and parse_predefined_cf_class(s) == ("none", "none"))
 	print(" ")
 	print(sub_rob)
 	print(" ")
 	
 	
-	base_folder1 = os.path.join(script_dir, "RESULTS_dr_cfgnn_AND_random_ORIGINAL", config.datasets.dataset_name, sub_rob)
-	base_folder2 = os.path.join(script_dir, "RESULTS_dr_cfgnn_AND_random", config.datasets.dataset_name, sub_rob)
+	base_folder1 = os.path.join(script_dir, "RESULTS_dr_cfgnn_AND_random", config.datasets.dataset_name, sub_rob)
+	base_folder2 = os.path.join(script_dir, "..", "..", "..", "..","..","..", "Desktop", "robustness","RESULTS_dr_cfgnn_AND_random_ROBUST", config.datasets.dataset_name, sub_rob)
+	base_folder2 = os.path.abspath(base_folder2)
+	print(base_folder2)
 
 	d1=extract_counterfactuals(base_folder1)
 	d2=extract_counterfactuals(base_folder2)
@@ -127,9 +129,6 @@ def pipeline(config):
 		common_test_indices.add(t)   
 	pn = round(len(common_test_indices) / len(test_idx1), 2)
 	
-
-
-
 	pn_lower, pn_upper = wilson_ci(len(common_test_indices), len(test_idx1))
 	print(f"pn for tests {pn}        Wilson : [{pn_lower:.3f}, {pn_upper:.3f}]")	
 	pn_class_lower, pn_class_upper = wilson_ci(len(common_triplets), len(cfs1))	
@@ -171,6 +170,22 @@ def pipeline(config):
 	avg_max_j = round(sum(max_j_per_key) /  len(max_j_per_key),2)
 	print("Avg max-Jaccard over keys (only keys with matches):", avg_max_j)
 	print(" ")
+
+	
+	
+	
+	import csv
+	csv_dir = os.path.join(script_dir, "csv_files")
+	os.makedirs(csv_dir, exist_ok=True)
+	out_csv = os.path.join(csv_dir,f"robustness_metrics_{config.datasets.dataset_name}.csv")
+	row = {"dataset": config.datasets.dataset_name, "pn_tests": pn, "pn_tests_wilson_low": round(pn_lower, 3), "pn_tests_wilson_high": round(pn_upper, 3),  "pn_triplets": pn_triplet, "pn_triplets_wilson_low": round(pn_class_lower, 3), "pn_triplets_wilson_high": round(pn_class_upper, 3),"avg_max_jaccard": avg_max_j}
+	
+	fieldnames = [   "dataset", "pn_tests",  "pn_tests_wilson_low", "pn_tests_wilson_high",  "pn_triplets",  "pn_triplets_wilson_low", "pn_triplets_wilson_high", "avg_max_jaccard"]
+	write_header = (not os.path.exists(out_csv))
+	with open(out_csv, "w", newline="") as f:
+		w = csv.DictWriter(f, fieldnames=fieldnames)
+		w.writeheader()
+		w.writerow(row)
 	
 
 

@@ -340,7 +340,8 @@ class PlotUtils(object):
                       figname=None):
         # collect the text information and node color
         if self.dataset_name == 'mutag':
-            node_dict = {0: 'C', 1: 'N', 2: 'O', 3: 'F', 4: 'I', 5: 'Cl', 6: 'Br'}
+            #node_dict = {0: 'C', 1: 'N', 2: 'O', 3: 'F', 4: 'I', 5: 'Cl', 6: 'Br'}
+            node_dict = {0:"C", 1:"O", 2:"Cl", 3:"H", 4:"N", 5:"F", 6:"Br", 7:"S", 8:"P", 9:"I", 10:"Na", 11:"K", 12:"Li", 13:"Ca"}
             node_idxs = {k: int(v) for k, v in enumerate(np.where(x.cpu().numpy() == 1)[1])}
             node_labels = {k: node_dict[v] for k, v in node_idxs.items()}
             node_color = ['#E49D1C', '#4970C6', '#FF5357', '#29A329', 'brown', 'darkslategray', '#F0EA00']
