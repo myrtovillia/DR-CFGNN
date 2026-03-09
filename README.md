@@ -8,7 +8,7 @@
 --------------------------------------------------------------------------------------------
 **Set up**
 
-Download datasets (folder `datasets`), trained models (folder `checkpoints`), the trained reconstruction models (folders `checkpoints_reconstruction_False` and `checkpoints_reconstruction_True`) and the factual explanations from SubgraphX (folder `results`) from Google Drive and place everything under: `DIG/benchmarks/xgraph/` (Drive link: https://drive.google.com/drive/folders/1JarbqYYSlZD3mvfvkQ-hcs0tCKOeYMDn?usp=sharing). Download the datasets Graph-SST2, Graph-SST5, and Twitter manually using the link displayed in the command line prompt.
+Download datasets (folder `datasets`), trained models (folder `checkpoints`), the trained reconstruction models (folders `checkpoints_reconstruction_False` and `checkpoints_reconstruction_True`) and the factual explanations from SubgraphX (folder `results`) from Google Drive and place everything under: `DIG/benchmarks/xgraph/` (Drive link: https://drive.google.com/drive/folders/1JarbqYYSlZD3mvfvkQ-hcs0tCKOeYMDn?usp=sharing). Download the datasets Graph-SST5 and Twitter manually using the link displayed in the command line prompt.
 
 
 
