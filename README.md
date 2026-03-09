@@ -1,4 +1,4 @@
-
+This repository contains the code for the experiments of the the paper **A Completion-Aware Framework for Impactful and Robust Counterfactual Explainability in Graph Neural Networks** with id **524** that has been submitted for review in **ECML PKDD 2026**.
 
 **Note :** We explicitly state that our work was built on top of the DIG library and the survey paper https://arxiv.org/abs/2012.15445 by Yuan et al. The authors of the survey developed an open source library for GNN explainability, released as part of the DIG library. 
 
