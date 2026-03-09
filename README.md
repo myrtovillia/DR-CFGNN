@@ -8,6 +8,46 @@
 --------------------------------------------------------------------------------------------
 **Set up**
 
+**Install dependencies with pip (without Docker)**
+
+Below is a pip setup aligned with the environment used in our Docker runs (`torch==2.5.1+cu118`, `torch_geometric==2.2.0`).
+
+From the `DIG` directory:
+
+```bash
+cd DIG
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
+```
+
+Install PyTorch (CUDA 11.8):
+
+```bash
+pip install torch==2.5.1+cu118 torchvision==0.20.1+cu118 torchaudio==2.5.1+cu118 \
+  --index-url https://download.pytorch.org/whl/cu118
+```
+
+Install PyG compiled extensions compatible with Torch 2.5.1 + cu118:
+
+```bash
+pip install torch-scatter==2.1.2+pt25cu118 torch-sparse==0.6.18+pt25cu118 torch-cluster==1.6.3+pt25cu118 \
+  -f https://data.pyg.org/whl/torch-2.5.1+cu118.html
+
+pip install torch-geometric==2.2.0
+```
+
+Install the remaining runtime dependencies used by the xgraph pipeline:
+
+```bash
+pip install hydra-core==1.3.2 omegaconf==2.3.0 captum==0.2.0 rdkit-pypi==2022.9.5 \
+  numpy==1.26.3 scipy==1.13.1 scikit-learn==1.6.1 pandas==2.2.3 \
+  networkx==3.2.1 matplotlib==3.9.2 tqdm==4.67.1 ogb==1.3.6 gdown==5.2.0
+```
+
+Then run the training/evaluation commands from the same `DIG` directory.
+
+
 Download datasets (folder `datasets`), trained models (folder `checkpoints`), the trained reconstruction models (folders `checkpoints_reconstruction_False` and `checkpoints_reconstruction_True`) and the factual explanations from SubgraphX (folder `results`) from Google Drive and place everything under: `DIG/benchmarks/xgraph/` (Drive link: https://drive.google.com/drive/folders/1JarbqYYSlZD3mvfvkQ-hcs0tCKOeYMDn?usp=sharing). Download the datasets Graph-SST5 and Twitter manually using the link displayed in the command line prompt.
 
 
