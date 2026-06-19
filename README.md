@@ -1,6 +1,9 @@
 This repository contains the official implementation and experimental code for our paper  **A Completion-Aware Framework for Impactful and Robust Counterfactual Explainability in Graph Neural Networks**, accepted for publication at ECML PKDD 2026. 
 
-The supplementary appendix is available here : https://github.com/myrtovillia/DR-CFGNN/blob/main/appendix_DR_CFGNN.pdf 
+
+The **supplementary appendix** is available here : https://github.com/myrtovillia/DR-CFGNN/blob/main/appendix_DR_CFGNN.pdf 
+
+
 
 
 
