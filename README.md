@@ -1,7 +1,10 @@
-This repository contains the official implementation and experimental code for our paper  **A Completion-Aware Framework for Impactful and Robust Counterfactual Explainability in Graph Neural Networks**, accepted for publication at ECML PKDD 2026.
+This repository contains the official implementation and experimental code for our paper  **A Completion-Aware Framework for Impactful and Robust Counterfactual Explainability in Graph Neural Networks**, accepted for publication at ECML PKDD 2026. 
+
+The supplementary appendix is available here : https://github.com/myrtovillia/DR-CFGNN/blob/main/appendix_DR_CFGNN.pdf 
+
+
 
 **Note :** We explicitly state that our work was built on top of the DIG library and the survey paper https://arxiv.org/abs/2012.15445 by Yuan et al. The authors of the survey developed an open source library for GNN explainability, released as part of the DIG library. 
-
 'dig' from their github contains multiple folders. We kept only the relevant folder, xgraph, and modified some of its scripts in order to create more synthetic datasets and inject noise. 
 
 
